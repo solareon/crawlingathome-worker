@@ -10,11 +10,15 @@
 4. `. setup.sh`, to install dependencies.
 5. `python3 crawlingathome.py`, to start Crawling!
 
+## Droplet Setup
+1. use `cloud-config.yaml` script to init the droplet. remember to change to your SSH privatekey in line 9
+2. ssh with user `crawl` and check the script by running `tail -f crawl.log`
+
 ## TODO
 - [x] Save image embedding 
 - [x] Convert images to tfrecords
 - [x] Upload to google drive
 - [x] Prevent corrupt image to be processed
-- [ ] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
+- [x] Shard of chunk (it needs to read all WAT file which will be bad for low ram server)
 - [x] Crawling@Home integration
 - [ ] Verify output
