@@ -141,3 +141,7 @@ cython_debug/
 CLOP
 clip
 crawlingathome_client
+
+# Worker Folders
+.tmp/
+save/
