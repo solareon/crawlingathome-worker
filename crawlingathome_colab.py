@@ -6,7 +6,7 @@ import pickle
 import shutil
 import time
 from glob import glob
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from uuid import uuid1
 
 import tractor
@@ -14,7 +14,6 @@ import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
 from copy import copy
-import tqdm
 
 import asks
 asks.init("trio")
@@ -99,31 +98,12 @@ class FileData:
     def __len__(self):
         return self._length
 
-class TrioProgress(trio.abc.Instrument):
-
-    def __init__(self, total, notebook_mode=False, **kwargs):
-        if notebook_mode:
-            from tqdm.notebook import tqdm
-        else:
-            from tqdm import tqdm
-
-        self.tqdm = tqdm(total=total, desc="Downloaded: [ 0 ] / Links ", **kwargs)
-
-    def task_exited(self, task):
-        if task.custom_sleep_data == 0:
-            self.tqdm.update(7)
-        if task.custom_sleep_data == 1:
-            self.tqdm.update(7)
-            self.tqdm.desc = self.tqdm.desc.split(":")[0] + ": [ " + str( int(self.tqdm.desc.split(":")[1].split(" ")[2]) + 1 ) + " ] / Links "
-            self.tqdm.refresh()
-
 def chunk_using_generators(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
 
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
-
 
 def parse_wat(content, start, line_count):
     import ftfy
@@ -193,7 +173,7 @@ def process_img_content(response, alt_text, license, sample_id):
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
 
 
-async def request_image(datas, start_sampleid, instrument=None):
+async def request_image(datas, start_sampleid):
     tmp_data = []
 
     import asks
@@ -232,10 +212,6 @@ async def request_image(datas, start_sampleid, instrument=None):
     gc.collect()
     return
 
-    #trio.run(_requestmain)
-    #instruments=[instrument(len(datas), True)]
-
-
 async def dl_wat(valid_data, first_sample_id):
     import pandas as pd
     
@@ -246,7 +222,6 @@ async def dl_wat(valid_data, first_sample_id):
             await n.run_in_actor(
                 request_image, datas=data, start_sampleid = i * 65536 + first_sample_id
             )
-        #trio.run(request_image, valid_data, first_sample_id, instruments=[TrioProgress(len(valid_data), True)] )
 
     for tmpf in glob(".tmp/*.json"):
         processed_samples.extend(ujson.load(open(tmpf)))
@@ -435,7 +410,7 @@ if __name__ == '__main__':
 
         client.log("Downloading images")
         time.sleep(10) #prevent damaging the progress bars
-        dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id, instruments=[TrioProgress(len(parsed_data), True)])
+        dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
         dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
         print (f"[crawling@home] Downloaded {len(dlparse_df)} in {round(time.time() - start)} seconds")
         print (f"[crawling@home] Download efficiency {len(dlparse_df)/(time.time() - start)} img/sec")
@@ -468,5 +443,4 @@ if __name__ == '__main__':
         client._markjobasdone(len(filtered_df))
         print(f"[crawling@home] job completed in {round(time.time() - start)} seconds")
         print(f"[crawling@home] job efficiency {len(filtered_df)/(time.time() - start)} pairs/sec")
-        break
     client.bye()
