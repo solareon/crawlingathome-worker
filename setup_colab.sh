@@ -7,7 +7,7 @@ rm requirements.txt blocklist-domain.txt
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
 wget https://raw.githubusercontent.com/rvencu/crawlingathome-worker/colab-mod-asks/requirements.txt
 wget https://raw.githubusercontent.com/Wikidepia/crawlingathome-worker/master/blocklist-domain.txt
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/colab-gpu/crawlingathome_colab.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/equal-chunk/crawlingathome_colab.py
 
 pip3 install torch==1.7.1$1 torchvision==0.8.2$1 -f https://download.pytorch.org/whl/torch_stable.html
 
