@@ -1,21 +1,22 @@
 import argparse
 import gc
-from io import BytesIO
 import os
 import pickle
+import random
 import shutil
 import time
+from copy import copy
 from glob import glob
+from io import BytesIO
 from urllib.parse import urljoin
 from uuid import uuid1
 
+import asks
 import tractor
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
-from copy import copy
 
-import asks
 asks.init("trio")
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
@@ -214,14 +215,17 @@ async def request_image(datas, start_sampleid):
 
 async def dl_wat(valid_data, first_sample_id):
     import pandas as pd
-    
+
     # Download every image available
     processed_samples = []
     async with tractor.open_nursery() as n:
-        for i, data in enumerate(chunk_using_generators(valid_data, 65536)):
-            await n.run_in_actor(
-                request_image, datas=data, start_sampleid = i * 65536 + first_sample_id
-            )
+        chunk_size = len(valid_data)//2 + 1
+        await n.run_in_actor(
+            request_image, datas=valid_data[:chunk_size], start_sampleid = first_sample_id
+        )
+        await n.run_in_actor(
+            request_image, datas=valid_data[chunk_size:], start_sampleid = first_sample_id + chunk_size
+        )
 
     for tmpf in glob(".tmp/*.json"):
         processed_samples.extend(ujson.load(open(tmpf)))
@@ -407,6 +411,8 @@ if __name__ == '__main__':
 
         with open("shard.wat", "r") as infile:
             parsed_data = parse_wat(infile, start_index, lines)
+
+        random.shuffle(parsed_data)
 
         client.log("Downloading images")
         time.sleep(10) #prevent damaging the progress bars
