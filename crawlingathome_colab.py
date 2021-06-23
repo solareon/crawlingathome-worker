@@ -179,7 +179,7 @@ async def request_image(datas, start_sampleid):
     import asks
     asks.init("trio")
 
-    session = asks.Session(connections=64)
+    session = asks.Session(connections=128)
     session.headers = {
         "User-Agent": "Googlebot-Image",
         "Accept-Language": "en-US",
