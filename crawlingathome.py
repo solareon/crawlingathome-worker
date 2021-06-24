@@ -131,7 +131,7 @@ async def request_image(datas, start_sampleid):
     return
 
 
-async def dl_wat(valid_data, first_sample_id):
+def dl_wat(valid_data, first_sample_id):
     import multiprocessing as mp
 
     import pandas as pd
@@ -141,14 +141,16 @@ async def dl_wat(valid_data, first_sample_id):
     n_processes = mp.cpu_count()
 
     if n_processes == 1:
-        await request_image(valid_data, first_sample_id)
+        trio.run(request_image, valid_data, first_sample_id)
     else:
-        async with tractor.open_nursery() as n:
-            chunk_size = len(valid_data)//n_processes + 1
-            for i, data in enumerate(chunk_using_generators(valid_data, chunk_size)):
-                await n.run_in_actor(
-                    request_image, datas=data, start_sampleid = first_sample_id + i*chunk_size
-                )
+        async def _runtractor():
+            async with tractor.open_nursery() as n:
+                chunk_size = len(valid_data)//n_processes + 1
+                for i, data in enumerate(chunk_using_generators(valid_data, chunk_size)):
+                    await n.run_in_actor(
+                        request_image, datas=data, start_sampleid = first_sample_id + i*chunk_size
+                    )
+        trio.run(_runtractor)
 
     for tmpf in glob(".tmp/*.json"):
         processed_samples.extend(ujson.load(open(tmpf)))
@@ -359,7 +361,7 @@ if __name__ == "__main__":
             random.shuffle(parsed_data)
 
             client.log("Downloading images")
-            dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+            dlparse_df = dl_wat(parsed_data, first_sample_id)
             dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
             print (f"[crawling@home] Downloaded {len(dlparse_df)} in {round(time.time() - start)} seconds")
             print (f"[crawling@home] Download efficiency {len(dlparse_df)/(time.time() - start)} img/sec")
