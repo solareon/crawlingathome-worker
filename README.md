@@ -5,7 +5,7 @@
 ## Google Colab
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/master/colab-gpu.ipynb)
 
-1. Just run all, make sure you are connected to a gpu runtime to maximize efficiency.
+1. Just run all (`Ctrl+F9`), make sure you are connected to a gpu runtime to maximize efficiency.
 
 ## Setup
 1. `git clone https://github.com/Wikidepia/crawlingathome-worker/`, to download headless-crawlingathome.
