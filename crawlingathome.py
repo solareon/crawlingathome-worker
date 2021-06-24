@@ -322,6 +322,7 @@ if __name__ == "__main__":
     while client.jobCount() > 0:
         try:
             start = time.time()
+
             if os.path.exists(output_folder):
                 shutil.rmtree(output_folder)
             if os.path.exists(".tmp"):
@@ -354,15 +355,22 @@ if __name__ == "__main__":
 
             with open("shard.wat", "r") as infile:
                 parsed_data = parse_wat(infile, start_index, lines)
+
             random.shuffle(parsed_data)
 
             client.log("Downloading images")
             dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
             dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+            print (f"[crawling@home] Downloaded {len(dlparse_df)} in {round(time.time() - start)} seconds")
+            print (f"[crawling@home] Download efficiency {len(dlparse_df)/(time.time() - start)} img/sec")
 
             client.log("Dropping NSFW keywords")
+            start2 = time.time()
             filtered_df, img_embeddings = df_clipfilter(dlparse_df)
             filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+            print (f"[crawling@home] CLIP filtered {len(filtered_df)} in {round(time.time() - start2)} seconds")
+            print (f"[crawling@home] CLIP efficiency {len(dlparse_df)/(time.time() - start2)} img/sec")
+
             img_embeds_sampleid = {}
             for i, img_embed_it in enumerate(img_embeddings):
                 dfid_index = filtered_df.at[i, "SAMPLE_ID"]
@@ -371,8 +379,6 @@ if __name__ == "__main__":
                 pickle.dump(img_embeds_sampleid, f)
 
             client.log("Saving TFRs")
-            print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
-            print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
             df_tfrecords(
                 filtered_df,
                 f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
@@ -383,9 +389,11 @@ if __name__ == "__main__":
             )
             upload_gdrive(output_folder + out_fname + ".csv")
             client._markjobasdone(len(filtered_df))
-            print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
+            print(f"[crawling@home] job completed in {round(time.time() - start)} seconds")
+            print(f"[crawling@home] job efficiency {len(filtered_df)/(time.time() - start)} pairs/sec")
         except KeyboardInterrupt:
             print("[crawling@home] stopping crawler")
+            break
         except Exception as ex:
             print(f"[crawling@home] ERROR: {ex}")
     client.bye()
