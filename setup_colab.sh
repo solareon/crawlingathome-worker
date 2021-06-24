@@ -12,7 +12,7 @@ wget https://raw.githubusercontent.com/Wikidepia/crawlingathome-worker/master/bl
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/dynamic-chunk/crawlingathome.py
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/dynamic-chunk/clip_filter.py
 
-pip3 install torch==1.7.1$1 torchvision==0.8.2$1 -f https://download.pytorch.org/whl/torch_stable.html
+pip3 install torch==1.7.1$1 torchvision==0.8.2$1 -f https://download.pytorch.org/whl/torch_stable.html --no-cache-dir
 
 #pip3 install git+https://github.com/rvencu/asks # breaks in colab
 pip3 install -r crawlingathome_client/requirements.txt --no-cache-dir
