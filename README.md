@@ -2,6 +2,8 @@
 
 > Help us build a billion-scale image-caption dataset by filtering Common Crawl with OpenAI CLIP
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/colab-gpu/colab-gpu.ipynb)
+
 ## Setup
 
 1. `git clone https://github.com/Wikidepia/crawlingathome-worker/`, to download headless-crawlingathome.
