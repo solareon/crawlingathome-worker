@@ -1,17 +1,19 @@
+import argparse
 import gc
-from io import BytesIO
 import os
 import pickle
 import shutil
 import time
+from copy import copy
 from glob import glob
-from urllib.parse import urljoin, urlparse
+from io import BytesIO
+from urllib.parse import urljoin
 from uuid import uuid1
 
+import tractor
 import trio
 import ujson
 from PIL import Image, ImageFile, UnidentifiedImageError
-from copy import copy
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -97,7 +99,7 @@ async def request_image(datas, start_sampleid):
     import asks
 
     tmp_data = []
-    session = asks.Session(connections=64)
+    session = asks.Session(connections=165)
     session.headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15",
         "Accept-Language": "en-US",
@@ -130,15 +132,21 @@ async def request_image(datas, start_sampleid):
 
 async def dl_wat(valid_data, first_sample_id):
     import pandas as pd
-    import tractor
+    import multiprocessing as mp
 
     # Download every image available
     processed_samples = []
-    async with tractor.open_nursery() as n:
-        for i, data in enumerate(chunk_using_generators(valid_data, 65536)):
-            await n.run_in_actor(
-                request_image, datas=data, start_sampleid=i * 65536 + first_sample_id
-            )
+    n_processes = mp.cpu_count()
+
+    if n_processes == 1:
+        await request_image(valid_data, first_sample_id)
+    else:
+        async with tractor.open_nursery() as n:
+            chunk_size = len(valid_data)//n_processes + 1
+            for i, data in enumerate(chunk_using_generators(chunk_size)):
+                await n.run_in_actor(
+                    request_image, datas=data, start_sampleid = first_sample_id + i*chunk_size
+                )
 
     for tmpf in glob(".tmp/*.json"):
         processed_samples.extend(ujson.load(open(tmpf)))
@@ -290,78 +298,91 @@ class FileData:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description = 'Crawling@Home Worker Script'
+    )
+
+    parser.add_argument('--name', '-n', type=str, default="ARKseal", help='Your name')
+    parser.add_argument('--url', '-u', type=str, default="http://crawlingathome.duckdns.org/", help='The Crawling Server')
+
+    args = parser.parse_args()
+
     import crawlingathome_client as cah
 
-    YOUR_NICKNAME_FOR_THE_LEADERBOARD = "Wiki_live_test"
-    CRAWLINGATHOME_SERVER_URL = "http://crawlingathome.duckdns.org/"
-
     client = cah.init(
-        url=CRAWLINGATHOME_SERVER_URL, nickname=YOUR_NICKNAME_FOR_THE_LEADERBOARD
+        url=args.url, nickname=args.name
     )
+
     output_folder = "./save/"
     csv_output_folder = output_folder
     img_output_folder = output_folder + "images/"
 
     while client.jobCount() > 0:
-        start = time.time()
-        if os.path.exists(output_folder):
-            shutil.rmtree(output_folder)
-        if os.path.exists(".tmp"):
-            shutil.rmtree(".tmp")
+        try:
+            start = time.time()
+            if os.path.exists(output_folder):
+                shutil.rmtree(output_folder)
+            if os.path.exists(".tmp"):
+                shutil.rmtree(".tmp")
 
-        os.mkdir(output_folder)
-        os.mkdir(img_output_folder)
-        os.mkdir(".tmp")
+            os.mkdir(output_folder)
+            os.mkdir(img_output_folder)
+            os.mkdir(".tmp")
 
-        client.newJob()
-        client.downloadShard()
-        first_sample_id = int(client.start_id)
-        last_sample_id = int(client.end_id)
-        shard_of_chunk = client.shard_piece
+            client.newJob()
+            client.downloadShard()
+            first_sample_id = int(client.start_id)
+            last_sample_id = int(client.end_id)
+            shard_of_chunk = client.shard_piece
 
-        out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
-        print(
-            f"[crawling@home] shard identification {out_fname}"
-        )  # in case test fails, we need to remove bad data
-        client.log("Processing shard")
+            out_fname = f"FIRST_SAMPLE_ID_IN_SHARD_{str(first_sample_id)}_LAST_SAMPLE_ID_IN_SHARD_{str(last_sample_id)}_{shard_of_chunk}"
+            print(
+                f"[crawling@home] shard identification {out_fname}"
+            )  # in case test fails, we need to remove bad data
+            client.log("Processing shard")
 
-        fd = FileData("shard.wat")
+            fd = FileData("shard.wat")
 
-        if shard_of_chunk == 0:
-            start_index = fd[0]
-        if shard_of_chunk == 1:
-            start_index = fd[int(len(fd) * 0.5)]
+            if shard_of_chunk == 0:
+                start_index = fd[0]
+            if shard_of_chunk == 1:
+                start_index = fd[int(len(fd) * 0.5)]
 
-        lines = int(len(fd) * 0.5)
+            lines = int(len(fd) * 0.5)
 
-        with open("shard.wat", "r") as infile:
-            parsed_data = parse_wat(infile, start_index, lines)
+            with open("shard.wat", "r") as infile:
+                parsed_data = parse_wat(infile, start_index, lines)
 
-        client.log("Downloading images")
-        dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
-        dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+            client.log("Downloading images")
+            dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
+            dlparse_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
 
-        client.log("Dropping NSFW keywords")
-        filtered_df, img_embeddings = df_clipfilter(dlparse_df)
-        filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
-        img_embeds_sampleid = {}
-        for i, img_embed_it in enumerate(img_embeddings):
-            dfid_index = filtered_df.at[i, "SAMPLE_ID"]
-            img_embeds_sampleid[str(dfid_index)] = img_embed_it
-        with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
-            pickle.dump(img_embeds_sampleid, f)
+            client.log("Dropping NSFW keywords")
+            filtered_df, img_embeddings = df_clipfilter(dlparse_df)
+            filtered_df.to_csv(output_folder + out_fname + ".csv", index=False, sep="|")
+            img_embeds_sampleid = {}
+            for i, img_embed_it in enumerate(img_embeddings):
+                dfid_index = filtered_df.at[i, "SAMPLE_ID"]
+                img_embeds_sampleid[str(dfid_index)] = img_embed_it
+            with open(f"{output_folder}image_embedding_dict-{out_fname}.pkl", "wb") as f:
+                pickle.dump(img_embeds_sampleid, f)
 
-        client.log("Saving TFRs")
-        print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
-        print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
-        df_tfrecords(
-            filtered_df,
-            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
-        )
-        upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
-        upload_gdrive(
-            f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
-        )
-        upload_gdrive(output_folder + out_fname + ".csv")
-        client._markjobasdone(len(filtered_df))
-        print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
+            client.log("Saving TFRs")
+            print(f"[crawling@home] downloaded images: {len(dlparse_df)}")
+            print(f"[crawling@home] filtered pairs: {len(filtered_df)}")
+            df_tfrecords(
+                filtered_df,
+                f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord",
+            )
+            upload_gdrive(f"{output_folder}image_embedding_dict-{out_fname}.pkl")
+            upload_gdrive(
+                f"{output_folder}crawling_at_home_{out_fname}__00000-of-00001.tfrecord"
+            )
+            upload_gdrive(output_folder + out_fname + ".csv")
+            client._markjobasdone(len(filtered_df))
+            print(f"[crawling@home] jobs completed in {round(time.time() - start)} seconds")
+        except KeyboardInterrupt:
+            print("[crawling@home] stopping crawler")
+        except Exception as ex:
+            print(f"[crawling@home] ERROR: {ex}")
+    client.bye()
