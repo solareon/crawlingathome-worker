@@ -2,6 +2,7 @@ import argparse
 import gc
 import os
 import pickle
+import random
 import shutil
 import time
 from copy import copy
@@ -131,8 +132,9 @@ async def request_image(datas, start_sampleid):
 
 
 async def dl_wat(valid_data, first_sample_id):
-    import pandas as pd
     import multiprocessing as mp
+
+    import pandas as pd
 
     # Download every image available
     processed_samples = []
@@ -352,6 +354,7 @@ if __name__ == "__main__":
 
             with open("shard.wat", "r") as infile:
                 parsed_data = parse_wat(infile, start_index, lines)
+            random.shuffle(parsed_data)
 
             client.log("Downloading images")
             dlparse_df = trio.run(dl_wat, parsed_data, first_sample_id)
