@@ -3,7 +3,7 @@
 sudo apt update && sudo apt install -y git build-essential python3.7-dev python3-pip python3.7-venv libjpeg-dev
 python3 -m venv venv && . venv/bin/activate
 
-rm requirements.txt blocklist-domain.txt crawlingathome.py
+rm requirements.txt blocklist-domain.txt crawlingathome.py clip_filter.py
 rm -r crawlingathome_client
 
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
