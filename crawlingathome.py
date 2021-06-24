@@ -145,7 +145,7 @@ async def dl_wat(valid_data, first_sample_id):
     else:
         async with tractor.open_nursery() as n:
             chunk_size = len(valid_data)//n_processes + 1
-            for i, data in enumerate(chunk_using_generators(chunk_size)):
+            for i, data in enumerate(chunk_using_generators(valid_data, chunk_size)):
                 await n.run_in_actor(
                     request_image, datas=data, start_sampleid = first_sample_id + i*chunk_size
                 )
