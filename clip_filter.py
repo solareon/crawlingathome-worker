@@ -2,9 +2,14 @@ import clip
 import datasets
 import torch
 from PIL import Image
+from multiprocessing import cpu_count
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 datasets.set_caching_enabled(False)
+
+vmem = torch.cuda.get_device_properties(0).total_memory if device == "cuda" else 0
+batch_size = 128 * int(vmem/1800000000) if device == "cuda" else cpu_count()
+print(f"batch size = {batch_size}")
 
 _tokenizer = clip.simple_tokenizer.SimpleTokenizer()
 def clip_tokenize(texts, context_length=77):
@@ -55,7 +60,7 @@ class CLIP:
 
     def preprocess_images(self, df):
         im_dataset = datasets.Dataset.from_pandas(df)
-        im_dataset = im_dataset.map(self.similarity_imgalt, batched=True, batch_size=8)
+        im_dataset = im_dataset.map(self.similarity_imgalt, batched=True, batch_size=batch_size, keep_in_memory=True, desc="CLIP inference")
         return im_dataset["image_features"], im_dataset["similarity"]
 
     def prob(self, image_features, text_features):
