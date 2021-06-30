@@ -3,7 +3,7 @@ import datasets
 import torch
 from PIL import Image
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 datasets.set_caching_enabled(False)
 
 _tokenizer = clip.simple_tokenizer.SimpleTokenizer()
