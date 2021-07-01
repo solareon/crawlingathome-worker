@@ -4,11 +4,12 @@ import torch
 from PIL import Image
 from multiprocessing import cpu_count
 
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+cuda = torch.cuda.is_available()
+device = torch.device("cuda") if cuda else torch.device("cpu")
 datasets.set_caching_enabled(False)
 
-vmem = torch.cuda.get_device_properties(0).total_memory if device == "cuda" else 0
-batch_size = 128 * int(vmem/1800000000) if device == "cuda" else cpu_count()
+vmem = torch.cuda.get_device_properties(0).total_memory if cuda else 0
+batch_size = 128 * int(vmem/1800000000) if cuda else cpu_count()
 print(f"batch size = {batch_size}")
 
 _tokenizer = clip.simple_tokenizer.SimpleTokenizer()
