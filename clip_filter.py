@@ -9,7 +9,7 @@ device = torch.device("cuda") if cuda else torch.device("cpu")
 datasets.set_caching_enabled(False)
 
 vmem = torch.cuda.get_device_properties(0).total_memory if cuda else 0
-batch_size = 128 * int(vmem/1800000000) if cuda else cpu_count()
+batch_size = 128 * int(vmem/1800000000) if cuda else cpu_count() * 2
 print(f"batch size = {batch_size}")
 
 _tokenizer = clip.simple_tokenizer.SimpleTokenizer()
