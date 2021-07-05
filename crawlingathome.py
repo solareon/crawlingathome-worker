@@ -336,7 +336,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('--name', '-n', type=str, default="ARKseal", help='Your name')
-    parser.add_argument('--url', '-u', type=str, default="https://api.gagepiracy.com:4483/", help='The Crawling Server')
+    parser.add_argument('--url', '-u', type=str, default="http://cah.io.community/", help='The Crawling Server')
 
     args = parser.parse_args()
 
