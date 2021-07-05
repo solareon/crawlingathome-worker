@@ -9,11 +9,10 @@
 2. Then just run all (`Ctrl+F9`) to install dependencies and start Crawling!
 
 ## Setup
-1. `git clone https://github.com/Wikidepia/crawlingathome-worker/`, to download headless-crawlingathome.
-2. `cd crawlingathome-worker`, to enter the directory.
-3. `python3 -m venv venv && . venv/bin/activate`, to create virtual environment, optional for dedicated computers
-4. `bash setup.sh`, to install dependencies.
-5. `python3 crawlingathome.py`, to start Crawling!
+1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup.sh`
+2. `bash setup.sh`, to install dependencies.
+3. `python3 crawlingathome.py`, to start Crawling!
+    * use `--name YOUR_NAME` to specify your display name
 
 ## Droplet Setup
 1. use `cloud-config.yaml` script to init the droplet
