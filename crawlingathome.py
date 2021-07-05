@@ -8,7 +8,7 @@ import time
 from copy import copy
 from glob import glob
 from io import BytesIO
-from urllib.parse import urljoin
+from urllib.parse import urlparse, urljoin
 from uuid import uuid1
 
 import tractor
@@ -32,21 +32,40 @@ def parse_wat(content, start, line_count):
     import ftfy
     import pycld2 as cld2
 
-    blocklist = open("blocklist-domain.txt").read().splitlines()
+    blocked = set()
+    with open("blocklist-domain.txt") as f:
+        blocked = set(f.read().splitlines())
+
+    failed = set()
+    with open("failed-domains.txt") as f:
+        failed = set(f.read().splitlines())
+
+    blocked |= failed
+    del failed
+
+    duplicates = set()
+    with open("5Mduplicates.txt") as f:
+        duplicates = set(f.read().splitlines())
+
     valid_data = []
     content.seek(start)
     for _ in range(line_count):
         line = content.readline()
+
         if "IMG@" not in line:
             continue
+
         line_str = line.strip()
         data = ujson.loads(line_str)
+
         linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
             "HTML-Metadata"
         ]["Links"]
+
         base_url = os.path.dirname(
             data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
         )  # get base url
+
         license = "?"
         for e in linklist:
             if "url" in e and "creativecommons.org/licenses/" in e["url"]:
@@ -54,11 +73,17 @@ def parse_wat(content, start, line_count):
             if "alt" not in e:
                 continue
             url = e["url"]
-            alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
-            if any(
-                x in url for x in [".svg", ".gif", "data:image", "javascript:"]
-            ) or any(bl in url for bl in blocklist):
+            
+            if any( x in url for x in [".svg", ".gif", "data:image", "javascript:"] ):
                 continue
+
+            try:
+                if urlparse(url).netloc in blocked:
+                    continue
+            except:
+                continue
+
+            alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
             try:
                 _, _, details = cld2.detect(alt_text)
             except Exception as e:
@@ -68,6 +93,10 @@ def parse_wat(content, start, line_count):
             if details[0][1] == "en":
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
+
+                if hash(url + alt_text) in duplicates:
+                    continue
+
                 valid_data.append((url, alt_text, license))
     return [
         t for t in {tuple(i) for i in valid_data}

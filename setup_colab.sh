@@ -3,14 +3,18 @@
 apt-get update && apt-get install -y git build-essential python3.7-dev python3-pip python3.7-venv libjpeg-dev
 python3 -m venv venv && . venv/bin/activate
 
-rm requirements.txt blocklist-domain.txt crawlingathome.py clip_filter.py
+rm blocklist-domain.txt failed-domains.txt 5Mduplicates.txt crawlingathome.py clip_filter.py requirements.txt
 rm -r crawlingathome_client
 
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
-wget https://raw.githubusercontent.com/Wikidepia/crawlingathome-worker/master/blocklist-domain.txt
+
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/crawlingathome.py
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/requirements.txt
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/clip_filter.py
+
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/blocklists/blocklist-domain.txt
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/blocklists/failed-domains.txt
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/blocklists/5Mduplicates.txt
 
 pip3 install wheel --no-cache-dir
 
