@@ -14,7 +14,7 @@ wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/clip
 
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/blocklists/blocklist-domain.txt
 wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/blocklists/failed-domains.txt
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/blocklists/5Mduplicates.txt
+wget https://raw.githubusercontent.com/rvencu/crawlingathome-gpu-hcloud/main/blocklists/5Mduplicates.txt
 
 pip3 install wheel --no-cache-dir
 
