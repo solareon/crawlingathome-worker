@@ -11,7 +11,7 @@
 ## Setup
 1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup.sh`
 2. `bash setup.sh`, to install dependencies.
-3. `python3 crawlingathome.py`, to start Crawling!
+3. `export PYTHONHASHCODE=0 && python3 crawlingathome.py`, to start Crawling!
     * use `--name YOUR_NAME` to specify your display name
 
 ## Droplet Setup
