@@ -46,6 +46,7 @@ def parse_wat(content, start, line_count):
     duplicates = set()
     with open("5Mduplicates.txt") as f:
         duplicates = set(f.read().splitlines())
+    dedupes = 0
 
     valid_data = []
     content.seek(start)
@@ -94,10 +95,12 @@ def parse_wat(content, start, line_count):
                 if not url.startswith("http"):
                     url = urljoin(base_url, url)
 
-                if hash(url + alt_text) in duplicates:
+                if str(hash(url + alt_text)) in duplicates:
+                    dedupes += 1
                     continue
 
                 valid_data.append((url, alt_text, license))
+    print(f'[crawling@home] duplicates found: {dedupes}')
     return [
         t for t in {tuple(i) for i in valid_data}
     ]  # Remove duplicate tuple from list
