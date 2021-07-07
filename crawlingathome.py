@@ -100,10 +100,9 @@ def parse_wat(content, start, line_count):
                     continue
 
                 valid_data.append((url, alt_text, license))
-    print(f'[crawling@home] duplicates found: {dedupes}')
     return [
         t for t in {tuple(i) for i in valid_data}
-    ]  # Remove duplicate tuple from list
+    ], dedupes # Remove duplicate tuple from list
 
 
 def process_img_content(response, alt_text, license, sample_id):
@@ -355,6 +354,11 @@ if __name__ == "__main__":
 
     while client.jobCount() > 0:
         try:
+            if not client.isAlive():
+                client = cah.init(
+                    url=args.url, nickname=args.name
+                )
+
             start = time.time()
 
             if os.path.exists(output_folder):
@@ -388,8 +392,9 @@ if __name__ == "__main__":
             lines = int(len(fd) * 0.5)
 
             with open("shard.wat", "r") as infile:
-                parsed_data = parse_wat(infile, start_index, lines)
+                parsed_data, dedupes = parse_wat(infile, start_index, lines)
 
+            print(f'[crawling@home] duplicates found: {dedupes}')
             random.shuffle(parsed_data)
 
             client.log("Downloading images")
