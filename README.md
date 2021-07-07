@@ -8,11 +8,15 @@
 1. Change the value for YOUR_NICKNAME_FOR_THE_LEADERBOARD and make sure you are connected to a gpu runtime to maximize efficiency.
 2. Then just run all (`Ctrl+F9`) to install dependencies and start Crawling!
 
+## Docker file
+1. Get the docker image using `docker pull arkseal/cah-worker`
+2. Run docker image using `docker run -d -e NAME={nickname} arkseal/cah-worker`
+
 ## Setup
 1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup.sh`
 2. `bash setup.sh`, to install dependencies.
 3. `export PYTHONHASHCODE=0 && python3 crawlingathome.py`, to start Crawling!
-    * use `--name YOUR_NAME` to specify your display name
+    * use `--name {nickname}` to specify your display name
 
 ## Droplet Setup
 1. use `cloud-config.yaml` script to init the droplet
