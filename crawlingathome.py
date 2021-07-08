@@ -434,9 +434,10 @@ if __name__ == "__main__":
             print("[crawling@home] stopping crawler")
             break
         except Exception as ex:
+            print(f"[crawling@home] ERROR: {ex}")
             if client.isAlive():
                 try:
                     client.log('Error, restarting job')
-                except: pass
-            print(f"[crawling@home] ERROR: {ex}")
+                except:
+                    print("[crawling@home] Couldn't log to client:")
     client.bye()
