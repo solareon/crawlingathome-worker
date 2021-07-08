@@ -41,4 +41,4 @@ pip3 install protobuf==3.9.2
 ENV PYTHONHASHSEED=0
 ENV NAME="ARKseal"
 
-CMD touch ./crawl.log && . venv/bin/activate && python3 -u crawlingathome.py --name $NAME >> ./crawl.log
+CMD . venv/bin/activate && nice python3 -u crawlingathome.py --name $NAME >> /dev/stdout
