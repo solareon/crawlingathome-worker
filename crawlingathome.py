@@ -320,6 +320,7 @@ if __name__ == "__main__":
             print(f"[crawling@home] ERROR: {ex}")
             if args.debug:
                 traceback.print_exc()
+                break
             if client.isAlive():
                 try:
                     client.log('Error, restarting job')
