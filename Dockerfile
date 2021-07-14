@@ -38,4 +38,4 @@ pip3 install protobuf==3.9.2
 ENV PYTHONHASHSEED=0
 ENV NAME="ARKseal"
 
-CMD . venv/bin/activate && nice python3 -u crawlingathome.py --name $NAME --debug
+CMD . venv/bin/activate && nice python3 -u crawlingathome.py --name $NAME
