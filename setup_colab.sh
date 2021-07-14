@@ -1,5 +1,17 @@
 #!/bin/bash
 
+export CURRDIR=$(pwd)
+
+cd /tmp
+wget https://github.com/protocolbuffers/protobuf/releases/download/v3.17.3/protoc-3.17.3-linux-x86_64.zip
+unzip protoc-3.17.3-linux-x86_64.zip
+sudo rm /usr/bin/protoc
+sudo mv ./bin/protoc /usr/bin
+sudo chmod +x /usr/bin/protoc
+rm -rf protoc-3.17.3-linux-x86_64.zip bin include readme.txt
+
+cd $CURRDIR
+
 apt-get update && apt-get install -y git build-essential python3.7-dev python3-pip python3.7-venv libtinfo5 libjpeg-dev
 python3 -m venv venv && . venv/bin/activate
 
@@ -33,11 +45,3 @@ CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd --no-cache-dir
 
 yes | pip3 uninstall asks
 pip3 install git+https://github.com/rvencu/asks --no-cache-dir
-
-cd /tmp
-wget https://github.com/protocolbuffers/protobuf/releases/download/v3.17.3/protoc-3.17.3-linux-x86_64.zip
-unzip protoc-3.17.3-linux-x86_64.zip
-sudo rm /usr/bin/protoc
-sudo mv ./bin/protoc /usr/bin
-sudo chmod +x /usr/bin/protoc
-rm -rf protoc-3.17.3-linux-x86_64.zip bin include readme.txt
