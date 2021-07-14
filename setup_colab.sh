@@ -11,7 +11,6 @@ sudo chmod +x /usr/bin/protoc
 rm -rf protoc-3.17.3-linux-x86_64.zip bin include readme.txt
 
 cd $CURRDIR
-
 apt-get update && apt-get install -y git build-essential python3.7-dev python3-pip python3.7-venv libtinfo5 libjpeg-dev
 python3 -m venv venv && . venv/bin/activate
 

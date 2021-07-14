@@ -10,7 +10,8 @@
 
 ## Docker file
 1. Get the docker image using `docker pull arkseal/cah-worker`
-2. Run docker image using `docker run -d -e NAME={nickname} arkseal/cah-worker`
+2. Run docker image using `docker run --shm-size=1g -d -e NAME={nickname} arkseal/cah-worker`
+###### You can use this one liner: `docker pull arkseal/cah-worker && docker run --shm-size=1g -d -e NAME={nickname} arkseal/cah-worker`
 
 ## Setup
 1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup.sh`
