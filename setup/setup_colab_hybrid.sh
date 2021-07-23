@@ -11,21 +11,19 @@ sudo chmod +x /usr/bin/protoc
 rm -rf protoc-3.17.3-linux-x86_64.zip bin include readme.txt
 
 cd $CURRDIR
-apt-get update && apt-get install -y git build-essential python3.7-dev python3-pip python3.7-venv libtinfo5 libjpeg-dev
+apt-get update && apt-get install -y git build-essential python3.7-dev python3-pip python3.7-venv libtinfo5 libjpeg-dev rsync
 python3 -m venv venv && . venv/bin/activate
 
-rm crawlingathome.py clip_filter.py requirements.txt blocklist-domain.txt failed-domains.txt bloom.bin
+rm crawlingathome.py clip_filter.py hybrid.py requirements.txt
+rm -r blocklists
 rm -r crawlingathome_client
 
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
 
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/crawlingathome.py
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/requirements.txt
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/clip_filter.py
-
-wget https://raw.githubusercontent.com/rvencu/crawlingathome-gpu-hcloud/main/blocklists/blocklist-domain.txt
-wget https://raw.githubusercontent.com/rvencu/crawlingathome-gpu-hcloud/main/blocklists/failed-domains.txt
-wget https://raw.githubusercontent.com/rvencu/crawlingathome-gpu-hcloud/main/blocklists/bloom.bin
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/crawlingathome.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/clip_filter.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/hybrid.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/requirements/hybrid_requirements.txt -O requirements.txt
 
 pip3 install wheel --no-cache-dir
 
