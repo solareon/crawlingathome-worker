@@ -19,10 +19,10 @@ rm -r crawlingathome_client
 
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client
 
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/crawlingathome.py
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/clip_filter.py
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/gpu.py
-wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/requirements/gpu-requirements.txt -O requirements.txt
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/crawlingathome.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/clip_filter.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/gpu.py
+wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/requirements/gpu-requirements.txt -O requirements.txt
 
 pip3 install wheel --no-cache-dir
 

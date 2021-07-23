@@ -3,16 +3,16 @@
 > Help us build a billion-scale image-caption dataset by filtering Common Crawl with OpenAI CLIP
 
 ## Google Colab
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/multiple-workers/notebooks/hybrid-worker.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/master/notebooks/hybrid-worker.ipynb)
 
 1. Change the value for YOUR_NICKNAME_FOR_THE_LEADERBOARD and make sure you are connected to a gpu runtime to maximize efficiency.
 2. Then just run all (`Ctrl+F9`) to install dependencies and start Crawling!
 
 ### Other options
 
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/multiple-workers/notebooks/cpu-worker.ipynb) 
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/master/notebooks/cpu-worker.ipynb) 
     * If you want to run a cpu only worker (don't use a gpu runtime)
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/multiple-workers/notebooks/gpu-worker.ipynb)
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ARKseal/crawlingathome-worker/blob/master/notebooks/gpu-worker.ipynb)
     * If you want to run a gpu only worker (please use a gpu runtime)
 
 ## Docker file
@@ -23,18 +23,18 @@
 - add `-e NAME={nickname}` to specify display name
 
 ## Setup
-1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/setup/setup_hybrid.sh`
+1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup/setup_hybrid.sh`
 2. `bash setup.sh`, to install dependencies.
 3. `export PYTHONHASHCODE=0 && python3 crawlingathome.py`, to start Crawling!
     * use `--name {nickname}` to specify your display name
 ### Other Options
 - CPU Only Worker:
-    1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/setup/setup_cpu.sh`
+    1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup/setup_cpu.sh`
     2. `bash setup.sh`, to install dependencies.
     3. `export PYTHONHASHCODE=0 && python3 crawlingathome.py --cpu`, to start Crawling!
         * use `--name {nickname}` to specify your display name
 - GPU Only Worker:
-    1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/setup/setup_gpu.sh`
+    1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup/setup_gpu.sh`
     2. `bash setup.sh`, to install dependencies.
     3. `export PYTHONHASHCODE=0 && python3 crawlingathome.py --gpu`, to start Crawling!
         * use `--name {nickname}` to specify your display name

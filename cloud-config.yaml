@@ -57,7 +57,7 @@ runcmd:
  - sed -i '$a AllowUsers crawl' /etc/ssh/sshd_config
  # install the script
  - cd /home/crawl
- - wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/multiple-workers/setup/setup_hybrid.sh
+ - wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup/setup_hybrid.sh
  - bash setup.sh
  # make the script run as a service at startup
  - echo "[Unit]" >> /etc/systemd/system/crawl.service
