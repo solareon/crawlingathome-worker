@@ -7,8 +7,10 @@ import shutil
 import time
 import traceback
 import warnings
+from datetime import datetime
 from glob import glob
 from io import BytesIO
+from threading import Thread
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1, uuid4
 
@@ -26,7 +28,6 @@ asks.init('trio')
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
-
 warnings.filterwarnings("ignore")
 
 
@@ -38,9 +39,13 @@ def chunk_using_generators(lst, n):
 def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
-def parse_wat_worker(file_name, start, line_count, oneprocess=False):
-    bloom_filter, blocked = updateFilters(recreate=True)
+
+def parse_wat_worker(file_name, start, line_count, workers, oneprocess=False, bloom_filter=None, blocked_links=None, clipped_filter=None):
+    if not all([bloom_filter, blocked_links, clipped_filter]):
+        bloom_filter, blocked_links, clipped_filter = getFilters(workers, recreate=True)
+
     dedupes = 0
+    cliped = 0
     valid_data = []
     with open(file_name, 'r') as content:
         content.seek(start)
@@ -73,7 +78,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                     continue
 
                 try:
-                    if urlparse(url).netloc in blocked:
+                    if urlparse(url).netloc in blocked_links:
                         continue
                 except:
                     continue
@@ -88,53 +93,62 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                 if details[0][1] == "en":
                     if not url.startswith("http"):
                         url = urljoin(base_url, url)
-
-                    if hashlib.md5((url + alt_text).encode("utf-8")).hexdigest() in bloom_filter:
+                    dedupe_url = hashlib.md5(
+                        (url + alt_text).encode("utf-8")).hexdigest()
+                    if dedupe_url in bloom_filter:
                         dedupes += 1
+                        continue
+                    elif dedupe_url in clipped_filter:
+                        cliped += 1
                         continue
 
                     valid_data.append((url, alt_text, license))
         if oneprocess:
             return [
+                # Remove duplicate tuple from list
                 t for t in {tuple(i) for i in valid_data}
-            ], dedupes  # Remove duplicate tuple from list
-            
+            ], dedupes, cliped
+
         with open(f'.tmp/pw-{uuid1()}.json', 'w') as f:
-            ujson.dump(valid_data + [dedupes], f)
+            ujson.dump(valid_data + [dedupes, cliped], f)
 
 
-def parse_wat(file_name, shard, blocked, bloom_filter):
-
-    fd = FileData("shard.wat")
+def parse_wat(file_name, shard, bloom_filter, blocked_links, clipped_filter, workers):
+    fd = FileData(file_name)
 
     if shard == 0:
         start_line = 0
-    if shard == 1:
+    elif shard == 1:
         start_line = len(fd)//2
 
     line_count = len(fd)//2
 
-    n_processes = mp.cpu_count()
-    if n_processes == 1:
-        return parse_wat_worker(fd[start_line], line_count, oneprocess=True)
+    if workers == 1:
+        return parse_wat_worker(file_name, fd[start_line], line_count, workers, oneprocess=True,
+                                bloom_filter=bloom_filter, blocked_links=blocked_links,
+                                clipped_filter=clipped_filter)
 
-    lc = line_count//n_processes - 1
-    with mp.Pool(n_processes) as pool:
-        pool.starmap(parse_wat_worker, [ (file_name, fd[start_line + i*lc], lc) for i in range(n_processes) ])
-    
+    lc = line_count//workers - 1
+    with mp.Pool(workers) as pool:
+        pool.starmap(parse_wat_worker, [
+                     (file_name, fd[start_line + i*lc], lc, workers) for i in range(workers)])
+
     valid_data = []
     dedupes = 0
+    cliped = 0
     for tmpf in glob('.tmp/pw-*.json'):
         with open(tmpf, 'r') as f:
             tmp_data = ujson.load(f)
-            valid_data.extend(tmp_data[:-1])
-            dedupes += tmp_data[-1]
+            valid_data.extend(tmp_data[:-2])
+            dedupes += tmp_data[-2]
+            cliped += tmp_data[-1]
     orig_len = len(valid_data)
     data = [
-            t for t in {tuple(i) for i in valid_data}
+        t for t in {tuple(i) for i in valid_data}
     ]
-    dedupes += orig_len - len(data)
-    return data, dedupes
+    shard_dups = orig_len - len(data)
+    return data, dedupes, cliped, shard_dups
+
 
 def process_img_content(response, alt_text, license, sample_id):
     img_output_folder = "save/images/"
@@ -226,29 +240,63 @@ def upload(source: str, client_type: str):
     return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target}')
 
 
-iters = 0
+def shouldUpdate(iters, file_name='blocklists/time') -> bool:
+    if iters % 10:
+        return False
+    '''
+    if os.path.exists(file_name):
+        with open(file_name, 'r') as f:
+            data = f.readline()
+        d = datetime.strptime(data, '%m/%d/%Y')
+        if d.day == datetime.now().day:
+            return False
+    with open(file_name, 'w') as f:
+        f.write(datetime.now().strftime('%m/%d/%Y'))
+    '''
+    return True
 
 
-def updateFilters(bloom=None, blocked=None, recreate=False):
+def _updateFilter(blocklist):
+    from requests import get
+    url = 'https://bitbucket.org/ARKseal/crawlingathome-blocklists/raw/HEAD/blocklists/{}'
+    with get(url.format(blocklist), stream=True) as r:
+        r.raise_for_status()
+        with open(f'blocklists/{blocklist}', 'w+b') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
 
-    if not recreate:
-        if iters//10:
-            return bloom, blocked
 
-        shutil.rmtree('blocklists', ignore_errors=True)
+def updateFilters():
+    start = time.time()
+    shutil.rmtree('blocklists', ignore_errors=True)
+    os.mkdir('blocklists')
 
-        result = 1
-        while result:
-            result = os.system(
-                "rsync -zh archiveteam@88.198.2.17::bloom/*.bin blocklists")
+    processes = []
+    for blocklist in ('bloom.bin', 'clipped.bin', 'failed-domains.bin'):
+        p = Thread(target=_updateFilter, args=(blocklist,))
+        p.start()
+        processes.append(p)
 
+    for p in processes:
+        p.join()
+
+    end = time.time()
+    print(f'[crawling@home] updated filters in {(end-start):.1f}')
+
+
+def getFilters(workers, recreate=False):
+    if workers != 1 and not recreate:
+        return [None]*3
     bloom = BloomFilter(max_elements=80_000_000,
                         error_rate=0.01, filename=("blocklists/bloom.bin", -1))
 
     blocked = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=(
         "blocklists/failed-domains.bin", -1))
 
-    return bloom, blocked
+    clipped = BloomFilter(max_elements=200_000_000, error_rate=0.05,
+                          filename=("blocklists/clipped.bin", -1))
+
+    return bloom, blocked, clipped
 
 
 class FileData:
@@ -261,6 +309,7 @@ class FileData:
             while f.readline():
                 self._line_to_position.append(f.tell())
                 self._length += 1
+        gc.collect()
 
     def __getitem__(self, line):
         return self._line_to_position[line]
@@ -270,32 +319,37 @@ class FileData:
 
 
 def main(name, url, debug):
-    global iters
-
     import crawlingathome_client as cah
-
-    output_folder = "./save/"
-    img_output_folder = output_folder + "images/"
-
-    bloom_filter, blocked_links = updateFilters()
 
     client = cah.init(
         url=url, nickname=name, type='cpu'
     )
 
+    if not os.path.exists('blocklists'):
+        os.mkdir('blocklists')
+
+    output_folder = "./save/"
+    img_output_folder = output_folder + "images/"
+
     uid = ''
+    iters = 0
+    updater = None
+    workers = mp.cpu_count()
+    bloom_filter, blocked_links, clipped_filter = None, None, None
 
     while client.jobCount() > 0:
         try:
-            if not client.isAlive():
-                client = cah.init(
-                    url=url, nickname=name, type='cpu'
-                )
-
-            bloom_filter, blocked_links = updateFilters(
-                bloom=bloom_filter, blocked=blocked_links)
-
             start = time.time()
+
+            if shouldUpdate(iters):
+                if workers == 1:
+                    updater = Thread(target=updateFilters)
+                else:
+                    updater = mp.Process(target=updateFilters)
+                updater.start()
+
+            if not client.isAlive():
+                client.recreate()
 
             shutil.rmtree(output_folder, ignore_errors=True)
             shutil.rmtree(uid, ignore_errors=True)
@@ -307,6 +361,14 @@ def main(name, url, debug):
 
             client.newJob()
             client.downloadShard()
+
+            if shouldUpdate(iters):
+                if hasattr(updater, 'join'):
+                    updater.join()
+                if hasattr(updater, 'close'):
+                    updater.close()
+                bloom_filter, blocked_links, clipped_filter = getFilters(
+                    workers)
 
             first_sample_id = int(client.start_id)
             last_sample_id = int(client.end_id)
@@ -320,31 +382,25 @@ def main(name, url, debug):
             client.log("Processing shard")
             start_processing = time.time()
 
-            parsed_data, dedupes = parse_wat(
-                'shard.wat', shard_of_chunk, blocked_links, bloom_filter)
+            parsed_data, dedupes, cliped, shard_dups = parse_wat(
+                'shard.wat', shard_of_chunk, bloom_filter, blocked_links, clipped_filter, workers)
 
-            parsed_df = pd.DataFrame(parsed_data, columns=[
-                                     "URL", "TEXT", "LICENSE"])
-            parsed_df.to_csv(output_folder + out_fname +
-                             "_parsed.csv", index=False, sep="|")
-
-            num_links = len(parsed_df)
-            del parsed_df
+            num_links = len(parsed_data)
 
             random.shuffle(parsed_data)
 
             end_processing = time.time()
             print(
-                f'[crawling@home] Processed shard in {(end_processing-start_processing):.1f} seconds, duplicates found: {dedupes}')
+                f'[crawling@home] Processed shard in {(end_processing-start_processing):.1f} seconds',
+                f'duplicates found: {dedupes}, cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
 
             client.log("Downloading images")
             start_dl = time.time()
             dlparse_df = dl_wat(parsed_data, first_sample_id)
             dlparse_df.to_csv(
                 f'{output_folder}{out_fname}.csv', index=False, sep="|")
-            dlparse_df.to_csv(
-                f'{output_folder}{out_fname}_unfiltered.csv', index=False, sep="|")
             end_dl = time.time()
+
             print(
                 f"[crawling@home] Downloaded {len(dlparse_df)} images out of {num_links} links in {(end_dl - start_dl):.1f} seconds")
             print(
@@ -366,11 +422,6 @@ def main(name, url, debug):
                 f"[crawling@home] job completed in {(end - start):.1f} seconds")
             print(
                 f"[crawling@home] job efficiency {(len(dlparse_df) / (end - start)):.2f} pairs/sec")
-
-            iters += 1
-
-            if debug:
-                break
         except KeyboardInterrupt:
             print("[crawling@home] stopping crawler")
             break
@@ -378,12 +429,23 @@ def main(name, url, debug):
             print(f"[crawling@home] ERROR: {ex}")
             if debug:
                 traceback.print_exc()
-                break
             if client.isAlive():
                 try:
                     client.log('Error, restarting job')
                 except:
                     print("[crawling@home] Couldn't log to client:")
+        finally:
+            iters += 1
+
+            if debug:
+                break
+    try:
+        if updater is not None:
+            updater.join()
+            if isinstance(updater, mp.Process):
+                updater.close()
+    except:
+        pass
     try:
         if client.isAlive():
             client.bye()
