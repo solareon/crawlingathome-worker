@@ -16,11 +16,19 @@
     * If you want to run a gpu only worker (please use a gpu runtime)
 
 ## Docker file
-1. Get the docker image using `docker pull arkseal/cah-worker`
-2. Run docker image using `docker run --shm-size=1g -d arkseal/cah-worker`
+1. Get the docker image using `docker pull arkseal/cah-worker:hybrid-cpu`
+2. Run docker image using `docker run --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
     - add `-e NAME={nickname}` to specify display name
-##### You can use this one liner: `docker pull arkseal/cah-worker && docker run --shm-size=1g -d arkseal/cah-worker`
+        - Ex: `docker run -e NAME=ARKseal --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
+##### You can use this one liner: `docker pull arkseal/cah-worker:hybrid-cpu && docker run --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
 - add `-e NAME={nickname}` to specify display name
+    - Ex: `docker pull arkseal/cah-worker:hybrid-cpu && docker run -e NAME=ARKseal --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
+
+### Other options
+- Gpu enabled hybrid worker: `docker pull arkseal/cah-worker:hybrid-gpu && docker run --gpus all --shm-size=1g -d arkseal/cah-worker:hybrid-gpu`
+    - add `-e NAME={nickname}` to specify display name
+        - Ex: `docker pull arkseal/cah-worker:hybrid-gpu && docker run --gpus all -e NAME=ARKseal --shm-size=1g -d arkseal/cah-worker:hybrid-gpu`
+    - This requries NVIDIA Container Toolkit
 
 ## Setup
 1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup/setup_hybrid.sh`
