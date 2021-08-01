@@ -4,10 +4,10 @@ import multiprocessing as mp
 import os
 import random
 import shutil
+import signal
 import time
 import traceback
 import warnings
-from datetime import datetime
 from glob import glob
 from io import BytesIO
 from threading import Thread
@@ -40,9 +40,10 @@ def remove_bad_chars(text):
     return "".join(c for c in text if c.isprintable())
 
 
-def parse_wat_worker(file_name, start, line_count, workers, oneprocess=False, bloom_filter=None, blocked_links=None, clipped_filter=None):
-    if not all([bloom_filter, blocked_links, clipped_filter]):
-        bloom_filter, blocked_links, clipped_filter = getFilters(workers, recreate=True)
+def parse_wat_worker(file_name, start, line_count, oneprocess=False):
+    bloom_filter, blocked_links, clipped_filter = getFilters()
+    blocked_formats = set(
+        [".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
 
     dedupes = 0
     cliped = 0
@@ -74,7 +75,7 @@ def parse_wat_worker(file_name, start, line_count, workers, oneprocess=False, bl
                     continue
                 url = e["url"]
 
-                if any(x in url for x in [".svg", ".gif", "data:image", "javascript:"]):
+                if any(bf in url.lower() for bf in blocked_formats):
                     continue
 
                 try:
@@ -113,7 +114,7 @@ def parse_wat_worker(file_name, start, line_count, workers, oneprocess=False, bl
             ujson.dump(valid_data + [dedupes, cliped], f)
 
 
-def parse_wat(file_name, shard, bloom_filter, blocked_links, clipped_filter, workers):
+def parse_wat(file_name, shard, workers):
     fd = FileData(file_name)
 
     if shard == 0:
@@ -124,9 +125,7 @@ def parse_wat(file_name, shard, bloom_filter, blocked_links, clipped_filter, wor
     line_count = len(fd)//2
 
     if workers == 1:
-        return parse_wat_worker(file_name, fd[start_line], line_count, workers, oneprocess=True,
-                                bloom_filter=bloom_filter, blocked_links=blocked_links,
-                                clipped_filter=clipped_filter)
+        return parse_wat_worker(file_name, fd[start_line], line_count, oneprocess=True)
 
     lc = line_count//workers - 1
     with mp.Pool(workers) as pool:
@@ -240,25 +239,9 @@ def upload(source: str, client_type: str):
     return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target}')
 
 
-def shouldUpdate(iters, file_name='blocklists/time') -> bool:
-    if iters % 10:
-        return False
-    '''
-    if os.path.exists(file_name):
-        with open(file_name, 'r') as f:
-            data = f.readline()
-        d = datetime.strptime(data, '%m/%d/%Y')
-        if d.day == datetime.now().day:
-            return False
-    with open(file_name, 'w') as f:
-        f.write(datetime.now().strftime('%m/%d/%Y'))
-    '''
-    return True
-
-
 def _updateFilter(blocklist):
     from requests import get
-    url = 'https://bitbucket.org/ARKseal/crawlingathome-blocklists/raw/HEAD/blocklists/{}'
+    url = 'https://the-eye.eu/public/AI/cahblacklists/{}'
     with get(url.format(blocklist), stream=True) as r:
         r.raise_for_status()
         with open(f'blocklists/{blocklist}', 'w+b') as f:
@@ -284,9 +267,7 @@ def updateFilters():
     print(f'[crawling@home] updated filters in {(end-start):.1f}')
 
 
-def getFilters(workers, recreate=False):
-    if workers != 1 and not recreate:
-        return [None]*3
+def getFilters():
     bloom = BloomFilter(max_elements=80_000_000,
                         error_rate=0.01, filename=("blocklists/bloom.bin", -1))
 
@@ -319,6 +300,15 @@ class FileData:
 
 
 def main(name, url, debug):
+    def _signalHandler(*_):
+        raise KeyboardInterrupt
+
+    for s in signal.Signals:
+        try:
+            signal.signal(s, _signalHandler)
+        except:
+            pass
+
     import crawlingathome_client as cah
 
     client = cah.init(
@@ -332,21 +322,19 @@ def main(name, url, debug):
     img_output_folder = output_folder + "images/"
 
     uid = ''
-    iters = 0
     updater = None
     workers = mp.cpu_count()
-    bloom_filter, blocked_links, clipped_filter = None, None, None
 
     while client.jobCount() > 0:
         try:
             start = time.time()
 
-            if shouldUpdate(iters):
-                if workers == 1:
-                    updater = Thread(target=updateFilters)
-                else:
-                    updater = mp.Process(target=updateFilters)
-                updater.start()
+            if workers == 1:
+                updater = Thread(target=updateFilters)
+            else:
+                updater = mp.Process(target=updateFilters)
+            updater.daemon = True
+            updater.start()
 
             if not client.isAlive():
                 client.recreate()
@@ -362,14 +350,6 @@ def main(name, url, debug):
             client.newJob()
             client.downloadShard()
 
-            if shouldUpdate(iters):
-                if hasattr(updater, 'join'):
-                    updater.join()
-                if hasattr(updater, 'close'):
-                    updater.close()
-                bloom_filter, blocked_links, clipped_filter = getFilters(
-                    workers)
-
             first_sample_id = int(client.start_id)
             last_sample_id = int(client.end_id)
             shard_of_chunk = client.shard_piece
@@ -379,11 +359,16 @@ def main(name, url, debug):
             print(
                 f"[crawling@home] shard identification {out_fname}"
             )  # in case test fails, we need to remove bad data
+
+            updater.join()
+            if hasattr(updater, 'close'):
+                updater.close()
+
             client.log("Processing shard")
             start_processing = time.time()
 
             parsed_data, dedupes, cliped, shard_dups = parse_wat(
-                'shard.wat', shard_of_chunk, bloom_filter, blocked_links, clipped_filter, workers)
+                'shard.wat', shard_of_chunk, workers)
 
             num_links = len(parsed_data)
 
@@ -435,14 +420,12 @@ def main(name, url, debug):
                 except:
                     print("[crawling@home] Couldn't log to client:")
         finally:
-            iters += 1
-
             if debug:
                 break
     try:
         if updater is not None:
             updater.join()
-            if isinstance(updater, mp.Process):
+            if hasattr(updater, 'close'):
                 updater.close()
     except:
         pass
