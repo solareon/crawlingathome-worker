@@ -4,7 +4,6 @@ import multiprocessing as mp
 import os
 import random
 import shutil
-import signal
 import time
 import traceback
 import warnings
@@ -42,8 +41,7 @@ def remove_bad_chars(text):
 
 def parse_wat_worker(file_name, start, line_count, oneprocess=False):
     bloom_filter, blocked_links, clipped_filter = getFilters()
-    blocked_formats = set(
-        [".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
+    blocked_formats = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
 
     dedupes = 0
     cliped = 0
@@ -75,9 +73,6 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                     continue
                 url = e["url"]
 
-                if any(bf in url.lower() for bf in blocked_formats):
-                    continue
-
                 try:
                     if urlparse(url).netloc in blocked_links:
                         continue
@@ -96,6 +91,8 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                         url = urljoin(base_url, url)
                     dedupe_url = hashlib.md5(
                         (url + alt_text).encode("utf-8")).hexdigest()
+                    if any(bf in url for bf in blocked_formats):
+                        continue
                     if dedupe_url in bloom_filter:
                         dedupes += 1
                         continue
@@ -130,7 +127,7 @@ def parse_wat(file_name, shard, workers):
     lc = line_count//workers - 1
     with mp.Pool(workers) as pool:
         pool.starmap(parse_wat_worker, [
-                     (file_name, fd[start_line + i*lc], lc, workers) for i in range(workers)])
+                     (file_name, fd[start_line + i*lc], lc) for i in range(workers)])
 
     valid_data = []
     dedupes = 0
@@ -300,15 +297,6 @@ class FileData:
 
 
 def main(name, url, debug):
-    def _signalHandler(*_):
-        raise KeyboardInterrupt
-
-    for s in signal.Signals:
-        try:
-            signal.signal(s, _signalHandler)
-        except:
-            pass
-
     import crawlingathome_client as cah
 
     print('[crawling@home] loading clip')
@@ -336,7 +324,6 @@ def main(name, url, debug):
                 updater = Thread(target=updateFilters)
             else:
                 updater = mp.Process(target=updateFilters)
-            updater.daemon = True
             updater.start()
 
             if not client.isAlive():
