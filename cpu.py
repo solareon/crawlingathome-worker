@@ -313,8 +313,13 @@ def main(name, url, debug):
     uid = ''
     updater = None
     workers = mp.cpu_count()
-
-    while client.jobCount() > 0:
+    while True:
+        try:
+            jobs = client.jobCount()
+        except:
+            pass
+        break
+    while jobs > 0:
         try:
             start = time.time()
 

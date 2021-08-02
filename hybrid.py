@@ -295,7 +295,6 @@ class FileData:
     def __len__(self):
         return self._length
 
-
 def main(name, url, debug):
     import crawlingathome_client as cah
 
@@ -316,7 +315,13 @@ def main(name, url, debug):
     updater = None
     workers = mp.cpu_count()
 
-    while client.jobCount() > 0:
+    while True:
+        try:
+            jobs = client.jobCount()
+        except:
+            pass
+        break
+    while jobs > 0:
         try:
             start = time.time()
 
