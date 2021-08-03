@@ -266,8 +266,8 @@ def updateFilters():
 
 
 def getFilters():
-    bloom = BloomFilter(max_elements=80_000_000,
-                        error_rate=0.01, filename=('blocklists/bloom200M.bin', -1))
+    bloom = BloomFilter(max_elements=200_000_000,
+                        error_rate=0.05, filename=('blocklists/bloom200M.bin', -1))
 
     blocked = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=(
         'blocklists/failed-domains.bin', -1))
