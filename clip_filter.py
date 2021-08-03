@@ -11,12 +11,12 @@ from PIL import Image
 cuda = torch.cuda.is_available()
 torch.set_num_threads(cpu_count())
 
-device = torch.device("cuda") if cuda else torch.device("cpu")
+device = torch.device('cuda') if cuda else torch.device('cpu')
 datasets.set_caching_enabled(False)
 
 vmem = torch.cuda.get_device_properties(0).total_memory if cuda else 0
 batch_size = 128 * int(vmem / 1800000000) if cuda else cpu_count()
-print(f"[crawling@home] batch size = {batch_size}")
+print(f'[crawling@home] batch size = {batch_size}')
 
 
 class CLIPDataset(torch.utils.data.Dataset):
@@ -31,22 +31,22 @@ class CLIPDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         row = self.dataframe.iloc[index]
         return (
-            self.image_transform(Image.open(row["PATH"])),
-            self.tokenizer(row["TEXT"], truncate=True)[0],
+            self.image_transform(Image.open(row['PATH'])),
+            self.tokenizer(row['TEXT'], truncate=True)[0],
         )
 
 
 class CLIP:
     def __init__(self):
-        self.model, self.preprocess = clip.load("ViT-B/32", device=device)
+        self.model, self.preprocess = clip.load('ViT-B/32', device=device)
         self.cosine_similarity = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
         with torch.no_grad():
-            self.categories = self.model.encode_text(clip.tokenize(["neutral", "selfie", "illustration, drawing", "toys, play, kids, children", "teddy bear, puppet", "animal, bird, mammal, insect" "fashion, clothes", "logo, commercial, ad, advertisement", "drawing, painting", "anime, cartoon", "comedy, fun", "romance, love story", "thriller, suspense, crime story", "action, action movie", "horror, monster movie", "documentary", "news, journalism", "entertainment", "talk show",
-                                                     "porn, sex, sperm, nipples, breats, tits, boops, penis, dick, cock, clitoris, vagina, fuck, lust, horny, sexual, lick, licking",  "porn, sex, sperm, nipples", "porn, sex, sperm, penis, dick, cock", "nipples, breats, tits, boops, sexy", "penis, dick, cock", "clitoris, vagina", "sex, fuck, lust, horny, sexual, lick, licking", "porn, sex, sexy", "sexy, hot", "sperm, skin", "lust, horny, sexual", "lick, licking, body", "anime, hentai, sexy", "cartoon, sexy, sex", "hentai", "anime, sexy, breasts", "hentai"]).to(device))
-            self.underaged_categories = self.model.encode_text(clip.tokenize(["teenager, teen", "kid, child, teenager, teen, baby or toddler, underaged, little girl, little boy", "kid, child, little girl, little boy",
-                                                               "baby, toddler", "adult, woman, man, grownup, grown person,full-aged of legal age", "full-aged, of legal age, adult", "woman, man", "adult, woman, man, grownup, grown person,full-aged of legal age"]).to(device))
-            self.animal_categories = self.model.encode_text(clip.tokenize(["lifeless object, thing", "thing, object", "material", "furniture", "wall", "house", "tree", "wood", "ground", "industry", "table", "bed", "tool", "dress, clothes", "door",
-                                                            "chair", "rock, stone", "human", "man", "woman", "man, woman", "animal", "cat", "dog", "cow", "pig", "goat", "sheep", "elephant", "horse", "horse, elephant, pig, dog, cat, sheep, goat, animal", "life", "wildlife"]).to(device))
+            self.categories = self.model.encode_text(clip.tokenize(['neutral', 'selfie', 'illustration, drawing', 'toys, play, kids, children', 'teddy bear, puppet', 'animal, bird, mammal, insect' 'fashion, clothes', 'logo, commercial, ad, advertisement', 'drawing, painting', 'anime, cartoon', 'comedy, fun', 'romance, love story', 'thriller, suspense, crime story', 'action, action movie', 'horror, monster movie', 'documentary', 'news, journalism', 'entertainment', 'talk show',
+                                                     'porn, sex, sperm, nipples, breats, tits, boops, penis, dick, cock, clitoris, vagina, fuck, lust, horny, sexual, lick, licking',  'porn, sex, sperm, nipples', 'porn, sex, sperm, penis, dick, cock', 'nipples, breats, tits, boops, sexy', 'penis, dick, cock', 'clitoris, vagina', 'sex, fuck, lust, horny, sexual, lick, licking', 'porn, sex, sexy', 'sexy, hot', 'sperm, skin', 'lust, horny, sexual', 'lick, licking, body', 'anime, hentai, sexy', 'cartoon, sexy, sex', 'hentai', 'anime, sexy, breasts', 'hentai']).to(device))
+            self.underaged_categories = self.model.encode_text(clip.tokenize(['teenager, teen', 'kid, child, teenager, teen, baby or toddler, underaged, little girl, little boy', 'kid, child, little girl, little boy',
+                                                               'baby, toddler', 'adult, woman, man, grownup, grown person,full-aged of legal age', 'full-aged, of legal age, adult', 'woman, man', 'adult, woman, man, grownup, grown person,full-aged of legal age']).to(device))
+            self.animal_categories = self.model.encode_text(clip.tokenize(['lifeless object, thing', 'thing, object', 'material', 'furniture', 'wall', 'house', 'tree', 'wood', 'ground', 'industry', 'table', 'bed', 'tool', 'dress, clothes', 'door',
+                                                            'chair', 'rock, stone', 'human', 'man', 'woman', 'man, woman', 'animal', 'cat', 'dog', 'cow', 'pig', 'goat', 'sheep', 'elephant', 'horse', 'horse, elephant, pig, dog, cat, sheep, goat, animal', 'life', 'wildlife']).to(device))
 
     def similarity_imgalt(self, image_tensor, text_tokens):
         with torch.no_grad():
@@ -91,7 +91,7 @@ clip_filter = CLIP()
 
 def df_clipfilter(df):
     sim_threshold = 0.3
-    underaged_text = ["teen", "kid", "child", "baby"]
+    underaged_text = ['teen', 'kid', 'child', 'baby']
 
     img_embedding, similarities = clip_filter.preprocess_images(df)
 
@@ -104,18 +104,18 @@ def df_clipfilter(df):
         # get most similar categories
         nsfw_prob = clip_filter.prob(img_embed, clip_filter.categories)
 
-        df.at[i, "NSFW"] = "UNSURE"
-        df.at[i, "similarity"] = similarities[i]
+        df.at[i, 'NSFW'] = 'UNSURE'
+        df.at[i, 'similarity'] = similarities[i]
         if nsfw_prob[0] < 19 and nsfw_prob[1] < 19:
-            df.at[i, "NSFW"] = "UNLIKELY"
+            df.at[i, 'NSFW'] = 'UNLIKELY'
             tmp_embed.append(img_embed)
             continue
         elif nsfw_prob[0] >= 19 and nsfw_prob[1] >= 19:
-            df.at[i, "NSFW"] = "NSFW"
+            df.at[i, 'NSFW'] = 'NSFW'
 
         underage_prob = clip_filter.prob(
             img_embed, clip_filter.underaged_categories)
-        if underage_prob[0] < 4 or underage_prob[1] < 4 or any(x in df.at[i, "TEXT"] for x in underaged_text):
+        if underage_prob[0] < 4 or underage_prob[1] < 4 or any(x in df.at[i, 'TEXT'] for x in underaged_text):
             df.drop(i, inplace=True)
             continue
 
@@ -135,28 +135,28 @@ def df_tfrecords(df, output_fname):
 
     def image_to_tfexample(sample_id, image_data, image_format, height, width, caption):
         return {
-            "sampleID": writer.bytes_feature(sample_id),
-            "image": writer.bytes_feature(image_data),
-            "format": writer.bytes_feature(image_format),
-            "label": writer.bytes_feature(caption),
-            "height": writer.int64_feature(height),
-            "width": writer.int64_feature(width),
+            'sampleID': writer.bytes_feature(sample_id),
+            'image': writer.bytes_feature(image_data),
+            'format': writer.bytes_feature(image_format),
+            'label': writer.bytes_feature(caption),
+            'height': writer.int64_feature(height),
+            'width': writer.int64_feature(width),
         }
 
-    with open(output_fname, "ab") as tfr:
+    with open(output_fname, 'ab') as tfr:
         for i in range(len(df)):
             df_image = df.iloc[i]
-            image_fname = df_image["PATH"]
-            file_type = image_fname.split(".")[-1]
-            with open(image_fname, "rb") as f:
+            image_fname = df_image['PATH']
+            file_type = image_fname.split('.')[-1]
+            with open(image_fname, 'rb') as f:
                 image_data = f.read()
             example = image_to_tfexample(
-                str(df_image["SAMPLE_ID"]).encode("utf-8"),
+                str(df_image['SAMPLE_ID']).encode('utf-8'),
                 image_data,
-                file_type.encode("utf-8"),
-                df_image["HEIGHT"],
-                df_image["WIDTH"],
-                df_image["TEXT"].encode("utf-8"),
+                file_type.encode('utf-8'),
+                df_image['HEIGHT'],
+                df_image['WIDTH'],
+                df_image['TEXT'].encode('utf-8'),
             )
             tfr.write(writer.encode_example(example))
 
@@ -165,25 +165,25 @@ def run_inference(df, output_folder, out_name):
     start_clip = time.time()
 
     img_embeddings = df_clipfilter(df)
-    df.to_csv(output_folder + out_name + ".csv", index=False, sep="|")
+    df.to_csv(output_folder + out_name + '.csv', index=False, sep='|')
 
     end_clip = time.time()
     print(
-        f"[crawling@home] CLIP filtered {len(df)} in {round(end_clip - start_clip)} seconds")
+        f'[crawling@home] CLIP filtered {len(df)} in {round(end_clip - start_clip)} seconds')
     print(
-        f"[crawling@home] CLIP efficiency {len(df) / (end_clip - start_clip)} img/sec")
+        f'[crawling@home] CLIP efficiency {len(df) / (end_clip - start_clip)} img/sec')
 
     img_embeds_sampleid = {}
     for i, img_embed_it in enumerate(img_embeddings):
-        dfid_index = df.at[i, "SAMPLE_ID"]
+        dfid_index = df.at[i, 'SAMPLE_ID']
         img_embeds_sampleid[str(dfid_index)] = img_embed_it
 
-    with open(f"{output_folder}image_embedding_dict-{out_name}.pkl", "wb") as f:
+    with open(f'{output_folder}image_embedding_dict-{out_name}.pkl', 'wb') as f:
         pickle.dump(img_embeds_sampleid, f)
 
     df_tfrecords(
         df,
-        f"{output_folder}crawling_at_home_{out_name}__00000-of-00001.tfrecord",
+        f'{output_folder}crawling_at_home_{out_name}__00000-of-00001.tfrecord',
     )
 
     return df

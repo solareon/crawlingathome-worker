@@ -15,7 +15,7 @@ import crawlingathome_client as cah
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings('ignore')
 
 
 def upload(source: str, client_type: str):
@@ -43,7 +43,7 @@ def download(url, name, debug, isnotebook):
             if len(glob(f'{uid}/*.csv')) == 0:
                 print(f'[crawling@home] Marking job {uid} as invalid')
                 client.invalidURL()
-            for file in glob(f"{uid}/*_parsed.csv") + glob(f"{uid}/*_unfiltered.csv"):
+            for file in glob(f'{uid}/*_parsed.csv') + glob(f'{uid}/*_unfiltered.csv'):
                 shutil.move(file, 'stats/')
 
             print(f'[crawling@home] Downloaded job {uid} in {end_dl-start_dl}')
@@ -63,7 +63,7 @@ def download(url, name, debug, isnotebook):
             if client.isAlive():
                 client.bye()
         except Exception as ex:
-            print(f"[crawling@home] DLERROR: {ex}")
+            print(f'[crawling@home] DLERROR: {ex}')
             if debug:
                 traceback.print_exc()
             if client.isAlive():
@@ -84,8 +84,8 @@ def downloader(name, url, debug, isnotebook, workers):
 
 def main(name, url, debug, isnotebook, workers):
 
-    if not Path("stats").exists():
-        os.mkdir("stats")
+    if not Path('stats').exists():
+        os.mkdir('stats')
 
     print('[crawling@home] loading clip')
     from clip_filter import run_inference
@@ -104,22 +104,22 @@ def main(name, url, debug, isnotebook, workers):
                 shard_of_chunk = client.shard_piece
 
                 out_fname = \
-                    f"FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}"
+                    f'FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}'
                 print(
-                    f"[crawling@home] shard identification {out_fname}"
+                    f'[crawling@home] shard identification {out_fname}'
                 )  # in case test fails, we need to remove bad data
 
                 dlparse_df = pandas.read_csv(
-                    f'{output_folder}{out_fname}.csv', sep="|")
-                dlparse_df["PATH"] = dlparse_df.apply(
-                    lambda x: output_folder + x["PATH"].strip("save/"), axis=1)
+                    f'{output_folder}{out_fname}.csv', sep='|')
+                dlparse_df['PATH'] = dlparse_df.apply(
+                    lambda x: output_folder + x['PATH'].strip('save/'), axis=1)
 
-                client.log("Dropping NSFW keywords")
+                client.log('Dropping NSFW keywords')
 
                 filtered_df_len = run_inference(
                     dlparse_df, output_folder, out_fname)
 
-                client.log("Uploading Results")
+                client.log('Uploading Results')
 
                 upload(f'{output_folder}/*{out_fname}*', client.type)
 
@@ -127,13 +127,13 @@ def main(name, url, debug, isnotebook, workers):
                 client.bye()
                 end = time.time()
                 print(
-                    f"[crawling@home] job completed in {round(end - start)} seconds")
+                    f'[crawling@home] job completed in {round(end - start)} seconds')
                 print(
-                    f"[crawling@home] job efficiency {filtered_df_len / (end - start)} pairs/sec")
+                    f'[crawling@home] job efficiency {filtered_df_len / (end - start)} pairs/sec')
                 shutil.rmtree(output_folder)
                 break
             except Exception as ex:
-                print(f"[crawling@home] ERROR: {ex}")
+                print(f'[crawling@home] ERROR: {ex}')
                 if debug:
                     traceback.print_exc()
                 if client.isAlive():

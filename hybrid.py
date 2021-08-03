@@ -27,7 +27,7 @@ asks.init('trio')
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings('ignore')
 
 
 def chunk_using_generators(lst, n):
@@ -36,12 +36,13 @@ def chunk_using_generators(lst, n):
 
 
 def remove_bad_chars(text):
-    return "".join(c for c in text if c.isprintable())
+    return ''.join(c for c in text if c.isprintable())
 
 
 def parse_wat_worker(file_name, start, line_count, oneprocess=False):
     bloom_filter, blocked_links, clipped_filter = getFilters()
-    blocked_formats = set([".svg", ".gif", ".webp", "data:image", "javascript:", "mailto:"])
+    blocked_formats = set(
+        ['.svg', '.gif', '.webp', 'data:image', 'javascript:', 'mailto:'])
 
     dedupes = 0
     cliped = 0
@@ -51,27 +52,27 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
         for _ in range(line_count):
             line = content.readline()
 
-            if "IMG@" not in line:
+            if 'IMG@' not in line:
                 continue
 
             line_str = line.strip()
             data = ujson.loads(line_str)
 
-            linklist = data["Envelope"]["Payload-Metadata"]["HTTP-Response-Metadata"][
-                "HTML-Metadata"
-            ]["Links"]
+            linklist = data['Envelope']['Payload-Metadata']['HTTP-Response-Metadata'][
+                'HTML-Metadata'
+            ]['Links']
 
             base_url = os.path.dirname(
-                data["Envelope"]["WARC-Header-Metadata"]["WARC-Target-URI"]
+                data['Envelope']['WARC-Header-Metadata']['WARC-Target-URI']
             )  # get base url
 
-            license = "?"
+            license = '?'
             for e in linklist:
-                if "url" in e and "creativecommons.org/licenses/" in e["url"]:
-                    license = e["url"]
-                if "alt" not in e:
+                if 'url' in e and 'creativecommons.org/licenses/' in e['url']:
+                    license = e['url']
+                if 'alt' not in e:
                     continue
-                url = e["url"]
+                url = e['url']
 
                 try:
                     if urlparse(url).netloc in blocked_links:
@@ -79,18 +80,18 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                 except:
                     continue
 
-                alt_text = ftfy.fix_text(e["alt"].replace("\n", " ")).strip()
+                alt_text = ftfy.fix_text(e['alt'].replace('\n', ' ')).strip()
                 try:
                     _, _, details = cld2.detect(alt_text)
                 except Exception as e:
                     alt_text = remove_bad_chars(alt_text)
                     _, _, details = cld2.detect(alt_text)
 
-                if details[0][1] == "en":
-                    if not url.startswith("http"):
+                if details[0][1] == 'en':
+                    if not url.startswith('http'):
                         url = urljoin(base_url, url)
                     dedupe_url = hashlib.md5(
-                        (url + alt_text).encode("utf-8")).hexdigest()
+                        (url + alt_text).encode('utf-8')).hexdigest()
                     if any(bf in url for bf in blocked_formats):
                         continue
                     if dedupe_url in bloom_filter:
@@ -147,7 +148,7 @@ def parse_wat(file_name, shard, workers):
 
 
 def process_img_content(response, alt_text, license, sample_id):
-    img_output_folder = "save/images/"
+    img_output_folder = 'save/images/'
 
     try:
         if len(response.content) < 5000:
@@ -156,11 +157,11 @@ def process_img_content(response, alt_text, license, sample_id):
         with Image.open(img_data) as im:
             width, height = im.size
             im_format = im.format
-            out_fname = f"{img_output_folder}{str(sample_id)}.{im_format.lower()}"
-            if im_format not in ["JPEG", "JPG", "PNG"]:
+            out_fname = f'{img_output_folder}{str(sample_id)}.{im_format.lower()}'
+            if im_format not in ['JPEG', 'JPG', 'PNG']:
                 return
-            if im.mode != "RGB":
-                im = im.convert("RGB")
+            if im.mode != 'RGB':
+                im = im.convert('RGB')
             im.save(out_fname)
     except (KeyError, UnidentifiedImageError):
         return
@@ -172,11 +173,11 @@ async def request_image(datas, start_sampleid):
     tmp_data = []
     session = asks.Session(connections=165)
     session.headers = {
-        "User-Agent": "Crawling at Home Project (http://cah.io.community)",
-        "Accept-Language": "en-US",
-        "Accept-Encoding": "gzip, deflate",
-        "Referer": "https://commoncrawl.org",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        'User-Agent': 'Crawling at Home Project (http://cah.io.community)',
+        'Accept-Language': 'en-US',
+        'Accept-Encoding': 'gzip, deflate',
+        'Referer': 'https://commoncrawl.org',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     }
 
     async def _request(data, sample_id):
@@ -195,7 +196,7 @@ async def request_image(datas, start_sampleid):
             n.start_soon(_request, data, start_sampleid)
             start_sampleid += 1
 
-    with open(f".tmp/dl-{uuid1()}.json", "w") as f:
+    with open(f'.tmp/dl-{uuid1()}.json', 'w') as f:
         ujson.dump(tmp_data, f)
     gc.collect()
     return
@@ -219,13 +220,13 @@ def dl_wat(valid_data, first_sample_id):
 
         trio.run(_runtractor)
 
-    for tmpf in glob(".tmp/dl-*.json"):
+    for tmpf in glob('.tmp/dl-*.json'):
         with open(tmpf, 'r') as f:
             processed_samples.extend(ujson.load(f))
     return pd.DataFrame(
         processed_samples,
-        columns=["SAMPLE_ID", "PATH", "URL",
-                 "TEXT", "HEIGHT", "WIDTH", "LICENSE"],
+        columns=['SAMPLE_ID', 'PATH', 'URL',
+                 'TEXT', 'HEIGHT', 'WIDTH', 'LICENSE'],
     )
 
 
@@ -252,7 +253,7 @@ def updateFilters():
     os.mkdir('blocklists')
 
     processes = []
-    for blocklist in ('bloom.bin', 'clipped.bin', 'failed-domains.bin'):
+    for blocklist in ('bloom200M.bin', 'clipped.bin', 'failed-domains.bin'):
         p = Thread(target=_updateFilter, args=(blocklist,))
         p.start()
         processes.append(p)
@@ -266,13 +267,13 @@ def updateFilters():
 
 def getFilters():
     bloom = BloomFilter(max_elements=80_000_000,
-                        error_rate=0.01, filename=("blocklists/bloom.bin", -1))
+                        error_rate=0.01, filename=('blocklists/bloom200M.bin', -1))
 
     blocked = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=(
-        "blocklists/failed-domains.bin", -1))
+        'blocklists/failed-domains.bin', -1))
 
     clipped = BloomFilter(max_elements=200_000_000, error_rate=0.05,
-                          filename=("blocklists/clipped.bin", -1))
+                          filename=('blocklists/clipped.bin', -1))
 
     return bloom, blocked, clipped
 
@@ -283,7 +284,7 @@ class FileData:
         self._line_to_position = [0]
         self._length = 0
 
-        with open(self._filename, "r") as f:
+        with open(self._filename, 'r') as f:
             while f.readline():
                 self._line_to_position.append(f.tell())
                 self._length += 1
@@ -294,6 +295,7 @@ class FileData:
 
     def __len__(self):
         return self._length
+
 
 def main(name, url, debug):
     import crawlingathome_client as cah
@@ -309,8 +311,8 @@ def main(name, url, debug):
     if not os.path.exists('blocklists'):
         os.mkdir('blocklists')
 
-    output_folder = "./save/"
-    img_output_folder = output_folder + "images/"
+    output_folder = './save/'
+    img_output_folder = output_folder + 'images/'
 
     updater = None
     workers = mp.cpu_count()
@@ -336,11 +338,11 @@ def main(name, url, debug):
 
             shutil.rmtree(output_folder, ignore_errors=True)
             shutil.rmtree(img_output_folder, ignore_errors=True)
-            shutil.rmtree(".tmp", ignore_errors=True)
+            shutil.rmtree('.tmp', ignore_errors=True)
 
             os.mkdir(output_folder)
             os.mkdir(img_output_folder)
-            os.mkdir(".tmp")
+            os.mkdir('.tmp')
 
             client.newJob()
             client.downloadShard()
@@ -350,16 +352,16 @@ def main(name, url, debug):
             shard_of_chunk = client.shard_piece
 
             out_fname = \
-                f"FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}"
+                f'FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}'
             print(
-                f"[crawling@home] shard identification {out_fname}"
+                f'[crawling@home] shard identification {out_fname}'
             )  # in case test fails, we need to remove bad data
 
             updater.join()
             if hasattr(updater, 'close'):
                 updater.close()
 
-            client.log("Processing shard")
+            client.log('Processing shard')
             start_processing = time.time()
 
             parsed_data, dedupes, cliped, shard_dups = parse_wat(
@@ -374,26 +376,26 @@ def main(name, url, debug):
                 f'[crawling@home] Processed shard in {(end_processing-start_processing):.1f} seconds',
                 f'duplicates found: {dedupes}, cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
 
-            client.log("Downloading images")
+            client.log('Downloading images')
             start_dl = time.time()
             dlparse_df = dl_wat(parsed_data, first_sample_id)
             dlparse_df.to_csv(
-                f'{output_folder}{out_fname}.csv', index=False, sep="|")
+                f'{output_folder}{out_fname}.csv', index=False, sep='|')
             end_dl = time.time()
 
             print(
-                f"[crawling@home] Downloaded {len(dlparse_df)} images out of {num_links} links in {(end_dl - start_dl):.1f} seconds")
+                f'[crawling@home] Downloaded {len(dlparse_df)} images out of {num_links} links in {(end_dl - start_dl):.1f} seconds')
             print(
-                f"[crawling@home] Download efficiency: {(len(dlparse_df) / (end_dl - start_dl)):.2f} img/sec OR {(num_links / (end_dl - start_dl)):.2f} links/sec")
+                f'[crawling@home] Download efficiency: {(len(dlparse_df) / (end_dl - start_dl)):.2f} img/sec OR {(num_links / (end_dl - start_dl)):.2f} links/sec')
 
-            dlparse_df.loc[:, "hash"] = dlparse_df.apply(lambda row: hashlib.md5(
-                (str(row.URL)+str(row.TEXT)).encode("utf-8")).hexdigest(), axis=1)
+            dlparse_df.loc[:, 'hash'] = dlparse_df.apply(lambda row: hashlib.md5(
+                (str(row.URL)+str(row.TEXT)).encode('utf-8')).hexdigest(), axis=1)
 
             with open(f'{output_folder}hashes-{out_fname}.clp', 'w') as f:
                 for item in dlparse_df['hash']:
                     f.write(item + '\n')
 
-            client.log("Dropping NSFW keywords")
+            client.log('Dropping NSFW keywords')
 
             filtered_df = run_inference(
                 dlparse_df, output_folder, out_fname)
@@ -402,21 +404,21 @@ def main(name, url, debug):
                 for item in filtered_df['hash']:
                     f.write(item + '\n')
 
-            client.log("Uploading Results")
+            client.log('Uploading Results')
 
             upload(f'{output_folder}/*{out_fname}*', client.type)
 
             client.completeJob(len(filtered_df))
             end = time.time()
             print(
-                f"[crawling@home] job completed in {(end - start):.1f} seconds")
+                f'[crawling@home] job completed in {(end - start):.1f} seconds')
             print(
-                f"[crawling@home] job efficiency {(len(filtered_df) / (end - start)):.2f} pairs/sec")
+                f'[crawling@home] job efficiency {(len(filtered_df) / (end - start)):.2f} pairs/sec')
         except KeyboardInterrupt:
-            print("[crawling@home] stopping crawler")
+            print('[crawling@home] stopping crawler')
             break
         except Exception as ex:
-            print(f"[crawling@home] ERROR: {ex}")
+            print(f'[crawling@home] ERROR: {ex}')
             if debug:
                 traceback.print_exc()
             if client.isAlive():
