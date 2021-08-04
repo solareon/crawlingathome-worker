@@ -17,11 +17,13 @@ import asks
 import ftfy
 import pandas as pd
 import pycld2 as cld2
+import requests
 import tractor
 import trio
 import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, ImageFile, UnidentifiedImageError
+from requests.adapters import HTTPAdapter
 
 asks.init('trio')
 
@@ -144,6 +146,7 @@ def parse_wat(file_name, shard, workers):
         t for t in {tuple(i) for i in valid_data}
     ]
     shard_dups = orig_len - len(data)
+    del fd
     return data, dedupes, cliped, shard_dups
 
 
@@ -237,20 +240,23 @@ def upload(source: str, client_type: str):
     return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target}')
 
 
-def _updateFilter(blocklist):
-    from requests import get
-    url = 'https://the-eye.eu/public/AI/cahblacklists/{}'
-    with get(url.format(blocklist), stream=True) as r:
-        r.raise_for_status()
-        with open(f'blocklists/{blocklist}', 'w+b') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-
 def updateFilters():
     start = time.time()
     shutil.rmtree('blocklists', ignore_errors=True)
     os.mkdir('blocklists')
+
+    session = requests.Session()
+    session.headers.update({'User-Agent': 'Crawling@Home'})
+    session.mount('http://', HTTPAdapter(max_retries=15))
+
+    url = 'http://the-eye.eu/public/AI/cahblacklists/{}'
+
+    def _updateFilter(blocklist):
+        with session.get(url.format(blocklist), stream=True) as r:
+            r.raise_for_status()
+            with open(f'blocklists/{blocklist}', 'w+b') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
 
     processes = []
     for blocklist in ('bloom200M.bin', 'clipped.bin', 'failed-domains.bin'):
