@@ -415,11 +415,11 @@ def main(name, url, debug):
             print(f'[crawling@home] ERROR: {ex}')
             if debug:
                 traceback.print_exc()
-            if client.isAlive():
-                try:
+            try:
+                if client.isAlive():
                     client.log('Error, restarting job')
-                except:
-                    print("[crawling@home] Couldn't log to client:")
+            except:
+                print("[crawling@home] Couldn't log to client:")
         finally:
             if debug:
                 break
