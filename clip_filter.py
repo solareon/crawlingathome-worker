@@ -18,7 +18,7 @@ vmem = torch.cuda.get_device_properties(0).total_memory if cuda else 0
 batch_size = 128 * int(vmem / 1800000000) if cuda else cpu_count()
 print(f'[crawling@home] batch size = {batch_size}')
 
-use_jit = True if cuda and '1.7.1' in torch.__version__
+use_jit = cuda and '1.7.1' in torch.__version__
 
 class CLIPDataset(torch.utils.data.Dataset):
     def __init__(self, dataframe, preprocess):
