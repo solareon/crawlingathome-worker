@@ -200,8 +200,7 @@ async def request_image(datas, start_sampleid, processing_count, lock):
 
     async with trio.open_nursery() as n:
         for data in datas:
-            async with limit:
-                n.start_soon(_request, data, start_sampleid)
+            n.start_soon(_request, data, start_sampleid)
             start_sampleid += 1
 
     with open(f'.tmp/dl-{uuid1()}.json', 'w') as f:
