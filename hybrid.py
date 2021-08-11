@@ -19,7 +19,6 @@ import asks
 import ftfy
 import pandas as pd
 import pycld2 as cld2
-import requests
 import trio
 import ujson
 from bloom_filter2 import BloomFilter
@@ -41,11 +40,10 @@ def remove_bad_chars(text):
 
 
 def parse_wat_worker(file_name, start, line_count, oneprocess=False):
-    bloom_filter, blocked_links, clipped_filter = getFilters()
+    blocked_links, clipped_filters = getFilters()
     blocked_formats = set(
         ['.svg', '.gif', '.webp', 'data:image', 'javascript:', 'mailto:'])
 
-    dedupes = 0
     cliped = 0
     valid_data = []
     with open(file_name, 'r') as content:
@@ -95,11 +93,13 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                         (url + alt_text).encode('utf-8')).hexdigest()
                     if any(bf in url for bf in blocked_formats):
                         continue
-                    if dedupe_url in bloom_filter:
-                        dedupes += 1
-                        continue
-                    elif dedupe_url in clipped_filter:
-                        cliped += 1
+                    clipped = False
+                    for clipped_filter in clipped_filters:
+                        if dedupe_url in clipped_filter:
+                            cliped += 1
+                            clipped = True
+                            break
+                    if clipped:
                         continue
 
                     valid_data.append((url, alt_text, license))
@@ -109,10 +109,10 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                 t for t in {tuple(i) for i in valid_data}
             ]
             shard_dups = orig_len - len(data)
-            return data, dedupes, cliped, shard_dups
+            return data, cliped, shard_dups
 
         with open(f'.tmp/pw-{uuid1()}.json', 'w') as f:
-            ujson.dump(valid_data + [dedupes, cliped], f)
+            ujson.dump(valid_data + [cliped], f)
 
 
 def parse_wat(file_name, shard, workers):
@@ -134,13 +134,11 @@ def parse_wat(file_name, shard, workers):
                      (file_name, fd[start_line + i*lc], lc) for i in range(workers)])
 
     valid_data = []
-    dedupes = 0
     cliped = 0
     for tmpf in glob('.tmp/pw-*.json'):
         with open(tmpf, 'r') as f:
             tmp_data = ujson.load(f)
-            valid_data.extend(tmp_data[:-2])
-            dedupes += tmp_data[-2]
+            valid_data.extend(tmp_data[:-1])
             cliped += tmp_data[-1]
     orig_len = len(valid_data)
     data = [
@@ -148,7 +146,7 @@ def parse_wat(file_name, shard, workers):
     ]
     shard_dups = orig_len - len(data)
     del fd
-    return data, dedupes, cliped, shard_dups
+    return data, cliped, shard_dups
 
 
 def process_img_content(response, alt_text, license, sample_id):
@@ -285,48 +283,31 @@ def upload(source: str, client_type: str):
     return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target}')
 
 
-def updateFilters():
+def updateFilters(first=False):
     start = time.time()
     shutil.rmtree('blocklists', ignore_errors=True)
     os.mkdir('blocklists')
 
-    session = requests.Session()
-    session.headers.update({'User-Agent': 'Crawling@Home'})
-    session.mount('http://', HTTPAdapter(max_retries=15))
-
-    url = 'http://the-eye.eu/public/AI/cahblacklists/{}'
-
-    def _updateFilter(blocklist):
-        with session.get(url.format(blocklist), stream=True) as r:
-            r.raise_for_status()
-            with open(f'blocklists/{blocklist}', 'w+b') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-    processes = []
-    for blocklist in ('bloom200M.bin', 'clipped.bin', 'failed-domains.bin'):
-        p = Thread(target=_updateFilter, args=(blocklist,))
-        p.start()
-        processes.append(p)
-
-    for p in processes:
-        p.join()
+    if first:
+        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" "http://the-eye.eu/public/AI/cahblacklists/"')
+        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists')
+    else:
+        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" -A "*_active.bin" "http://the-eye.eu/public/AI/cahblacklists/"')
+        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists')
+    shutil.rmtree('the-eye.eu')
 
     end = time.time()
     print(f'[crawling@home] updated filters in {(end-start):.1f}')
 
 
 def getFilters():
-    bloom = BloomFilter(max_elements=200_000_000,
-                        error_rate=0.05, filename=('blocklists/bloom200M.bin', -1))
-
     blocked = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=(
         'blocklists/failed-domains.bin', -1))
 
-    clipped = BloomFilter(max_elements=200_000_000, error_rate=0.05,
-                          filename=('blocklists/clipped.bin', -1))
+    clipped = [BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=(
+        clipped_file, -1)) for clipped_file in glob('blocklists/clipped*')]
 
-    return bloom, blocked, clipped
+    return blocked, clipped
 
 
 class DownloadProgressInstrument(trio.abc.Instrument):
@@ -380,12 +361,15 @@ def main(name, url, debug, isnotebook):
     updater = None
     workers = mp.cpu_count()
 
+    updateFilters(first=True)
+
     while True:
         try:
             jobs = client.jobCount()
         except:
             pass
         break
+
     while jobs > 0:
         try:
             start = time.time()
@@ -427,7 +411,7 @@ def main(name, url, debug, isnotebook):
             client.log('Processing shard')
             start_processing = time.time()
 
-            parsed_data, dedupes, cliped, shard_dups = parse_wat(
+            parsed_data, cliped, shard_dups = parse_wat(
                 'shard.wat', shard_of_chunk, workers)
 
             num_links = len(parsed_data)
@@ -437,7 +421,7 @@ def main(name, url, debug, isnotebook):
             end_processing = time.time()
             print(
                 f'[crawling@home] Processed shard in {(end_processing-start_processing):.1f} seconds',
-                f'duplicates found: {dedupes}, cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
+                f'cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
 
             client.log('Downloading images')
             start_dl = time.time()
@@ -488,7 +472,7 @@ def main(name, url, debug, isnotebook):
                 if client.isAlive():
                     client.log('Error, restarting job')
             except:
-                print("[crawling@home] Couldn't log to client:")
+                print("[crawling@home] Couldn't log to client")
         finally:
             if debug:
                 break
