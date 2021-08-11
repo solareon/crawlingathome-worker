@@ -172,7 +172,6 @@ def process_img_content(response, alt_text, license, sample_id):
 
 
 async def request_image(datas, start_sampleid, processing_count, lock):
-    limit = trio.CapacityLimiter(165*2)
     tmp_data = []
     session = asks.Session(connections=165)
     session.headers = {
@@ -215,7 +214,7 @@ def dl_wat_worker(data, start_sample_id, processing_count, finished_count, error
              DownloadProgressInstrument(processing_count, finished_count, error_count, lock)])
 
 
-def dl_progress(len_data, processing_count, finished_count, update_tqdm, lock, isnotebook=False):
+def dl_progress(len_data, processing_count, finished_count, error_count, update_tqdm, lock, isnotebook=False):
     if isnotebook:
         from tqdm import tqdm
     else:
@@ -226,7 +225,7 @@ def dl_progress(len_data, processing_count, finished_count, update_tqdm, lock, i
         with lock:
             if not update_tqdm.value:
                 break
-            progress_bar.desc = f'Processing {processing_count.value} links'
+            progress_bar.desc = f'Processing {processing_count.value} links, {error_count.value} errors'
             progress_bar.update(finished_count.value - progress_bar.n)
         time.sleep(1)
     progress_bar.close()
@@ -242,19 +241,21 @@ def dl_wat(valid_data, first_sample_id, isnotebook=False):
 
     processing_count = manager.Value(c_int, 0)
     finished_count = manager.Value(c_int, 0)
+    error_count = manager.Value(c_int, 0)
+
     lock = manager.Lock()
 
     t = mp.Process(target=dl_progress, args=(
-        len(valid_data), processing_count, finished_count, update_tqdm, lock, isnotebook))
+        len(valid_data), processing_count, finished_count, error_count, update_tqdm, lock, isnotebook))
     t.start()
 
     if n_processes == 1:
         dl_wat_worker(valid_data, processing_count,
-                      finished_count, update_tqdm, lock, isnotebook)
+                      finished_count, error_count, update_tqdm, lock, isnotebook)
     else:
         chunk_size = len(valid_data) // n_processes + 1
         worker = partial(dl_wat_worker, processing_count=processing_count,
-                         finished_count=finished_count, lock=lock)
+                         finished_count=finished_count, error_count=error_count, lock=lock)
         with mp.Pool(n_processes) as pool:
             pool.starmap(worker, [(data, first_sample_id + i * chunk_size)
                                   for (i, data) in enumerate(chunk_using_generators(valid_data, chunk_size))])
@@ -280,7 +281,7 @@ def upload(source: str, client_type: str):
     client_type = client_type.upper()
     target = 'gpujobs' if client_type == 'CPU' else 'CAH'
     options = '-rsh' if client_type == 'CPU' else '-zh'
-    return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target}')
+    return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
 
 
 def updateFilters(first=False):
@@ -289,11 +290,11 @@ def updateFilters(first=False):
     os.mkdir('blocklists')
 
     if first:
-        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" "http://the-eye.eu/public/AI/cahblacklists/"')
-        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists')
+        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" "http://the-eye.eu/public/AI/cahblacklists/" > /dev/null 2>&1')
+        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
     else:
-        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" -A "*_active.bin" "http://the-eye.eu/public/AI/cahblacklists/"')
-        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists')
+        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" -A "*_active.bin" "http://the-eye.eu/public/AI/cahblacklists/" > /dev/null 2>&1')
+        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
     shutil.rmtree('the-eye.eu')
 
     end = time.time()
@@ -311,15 +312,20 @@ def getFilters():
 
 
 class DownloadProgressInstrument(trio.abc.Instrument):
-    def __init__(self, processing_count, finished_count, lock):
+    def __init__(self, processing_count, finished_count, error_count, lock):
         self._processing_count = processing_count
         self._finished_count = finished_count
+        self._error_count = error_count
         self._lock = lock
 
     def task_exited(self, task):
         if task.custom_sleep_data in [0, 1]:
             with self._lock:
+                self._processing_count -= 1
                 self._finished_count.value += 1
+            if task.custom_sleep_data == 1:
+                with self._lock:
+                    self._error_count.value += 1
 
 
 class FileData:
