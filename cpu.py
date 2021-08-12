@@ -282,7 +282,7 @@ def upload(source: str, client_type: str):
 
     client_type = client_type.upper()
     target = 'gpujobs' if client_type == 'CPU' else 'CAH'
-    options = '-rsh' if client_type == 'CPU' else '-zh'
+    options = '-av' if client_type == 'CPU' else '-zh'
 
     result = 1
     while result:
