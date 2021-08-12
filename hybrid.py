@@ -118,7 +118,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                 t for t in {tuple(i) for i in valid_data}
             ]
             shard_dups = orig_len - len(data)
-            return data, cliped, shard_dups
+            return data, dedupes, cliped, shard_dups
 
         with open(f'.tmp/pw-{uuid1()}.json', 'w') as f:
             ujson.dump(valid_data + [dedupes, cliped], f)
@@ -316,8 +316,8 @@ def updateFilters(first=False):
 
 
 def getFilters():
-    blooms = [BloomFilter(max_elements=200000000, error_rate=0.05, filename=(
-        bloom_file, -1)) for bloom_file in glob('blocklists/bloom*.bim')]
+    blooms = [BloomFilter(max_elements=200_000_000, error_rate=0.05, filename=(
+        bloom_file, -1)) for bloom_file in glob('blocklists/bloom*')]
 
     blocked = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=(
         'blocklists/failed-domains.bin', -1))
