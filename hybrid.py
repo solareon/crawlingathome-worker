@@ -23,7 +23,6 @@ import trio
 import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, ImageFile, UnidentifiedImageError
-from requests.adapters import HTTPAdapter
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -291,7 +290,10 @@ def upload(source: str, client_type: str):
     client_type = client_type.upper()
     target = 'gpujobs' if client_type == 'CPU' else 'CAH'
     options = '-rsh' if client_type == 'CPU' else '-zh'
-    return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
+    
+    result = 1
+    while result:
+        result = os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
 
 
 def updateFilters(first=False):

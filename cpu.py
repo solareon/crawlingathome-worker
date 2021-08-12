@@ -4,6 +4,7 @@ import multiprocessing as mp
 import os
 import random
 import shutil
+import tarfile
 import time
 import traceback
 import warnings
@@ -23,7 +24,6 @@ import trio
 import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, ImageFile, UnidentifiedImageError
-from requests.adapters import HTTPAdapter
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -254,7 +254,7 @@ def dl_wat(valid_data, first_sample_id, isnotebook=False):
     else:
         chunk_size = len(valid_data) // n_processes + 1
         worker = partial(dl_wat_worker, processing_count=processing_count,
-                         finished_count=finished_count, lock=lock)
+                         finished_count=finished_count, error_count=error_count, lock=lock)
         with mp.Pool(n_processes) as pool:
             pool.starmap(worker, [(data, first_sample_id + i * chunk_size)
                                   for (i, data) in enumerate(chunk_using_generators(valid_data, chunk_size))])
@@ -277,10 +277,17 @@ def dl_wat(valid_data, first_sample_id, isnotebook=False):
 
 
 def upload(source: str, client_type: str):
+    with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
+        tar.add(source, arcname=os.path.basename(source))
+
     client_type = client_type.upper()
     target = 'gpujobs' if client_type == 'CPU' else 'CAH'
     options = '-rsh' if client_type == 'CPU' else '-zh'
-    return os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target}')
+
+    result = 1
+    while result:
+        result = os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
+    shutil.rmtree(f'{source}.tar.gz')
 
 
 def updateFilters(first=False):
@@ -289,11 +296,11 @@ def updateFilters(first=False):
     os.mkdir('blocklists')
 
     if first:
-        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" "http://the-eye.eu/public/AI/cahblacklists/"')
-        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists')
+        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" "http://the-eye.eu/public/AI/cahblacklists/" > /dev/null 2>&1')
+        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
     else:
-        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" -A "*_active.bin" "http://the-eye.eu/public/AI/cahblacklists/"')
-        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists')
+        os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" -A "*_active.bin" "http://the-eye.eu/public/AI/cahblacklists/" > /dev/null 2>&1')
+        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
     shutil.rmtree('the-eye.eu')
 
     end = time.time()
@@ -442,12 +449,9 @@ def main(name, url, debug, isnotebook):
             uid = uuid4().hex
             shutil.copytree('save', uid)
 
-            result = 1
-            while result:
-                result = upload(uid, client.type)
+            upload(uid, client.type)
 
             client.completeJob(f'rsync {uid}')
-
             end = time.time()
             print(
                 f'[crawling@home] job completed in {(end - start):.1f} seconds')
