@@ -320,7 +320,7 @@ class DownloadProgressInstrument(trio.abc.Instrument):
     def task_exited(self, task):
         if task.custom_sleep_data in [0, 1]:
             with self._lock:
-                self._processing_count -= 1
+                self._processing_count.value -= 1
                 self._finished_count.value += 1
             if task.custom_sleep_data == 1:
                 with self._lock:
