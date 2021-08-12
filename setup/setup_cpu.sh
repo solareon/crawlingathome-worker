@@ -30,8 +30,5 @@ pip3 install wheel --no-cache-dir
 pip3 install -r crawlingathome_client/requirements.txt --no-cache-dir
 pip3 install -r ./requirements.txt --no-cache-dir
 
-yes | pip3 uninstall pillow
-CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd --no-cache-dir
-
 yes | pip3 uninstall asks
 pip3 install git+https://github.com/rvencu/asks --no-cache-dir

@@ -25,6 +25,3 @@ wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/requ
 
 pip3 install -r crawlingathome_client/requirements.txt --no-cache-dir
 pip3 install -r ./requirements.txt --no-cache-dir
-
-yes | pip3 uninstall pillow
-CC="cc -mavx2" pip3 install -U --force-reinstall pillow-simd --no-cache-dir
