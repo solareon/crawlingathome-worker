@@ -286,7 +286,7 @@ def upload(source: str, client_type: str):
 
     result = 1
     while result:
-        result = os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
+        result = os.system(f'rsync {options} {source}.tar.gz archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
     shutil.rmtree(f'{source}.tar.gz')
 
 
