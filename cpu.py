@@ -276,17 +276,16 @@ def dl_wat(valid_data, first_sample_id, isnotebook=False):
     )
 
 
-def upload(source: str, client_type: str):
+def upload(source: str, client_type: str, target: str):
     with tarfile.open(f"{source}.tar.gz", "w:gz") as tar:
         tar.add(source, arcname=os.path.basename(source))
 
     client_type = client_type.upper()
-    target = 'gpujobs' if client_type == 'CPU' else 'CAH'
     options = '-av' if client_type == 'CPU' else '-zh'
 
     result = 1
     while result:
-        result = os.system(f'rsync {options} {source}.tar.gz archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
+        result = os.system(f'rsync {options} {source}.tar.gz {target} > /dev/null 2>&1')
     shutil.rmtree(f'{source}.tar.gz')
 
 
@@ -449,7 +448,7 @@ def main(name, url, debug, isnotebook):
             uid = uuid4().hex
             shutil.copytree('save', uid)
 
-            upload(uid, client.type)
+            upload(uid, client.type, client.upload_address)
 
             client.completeJob(f'rsync {uid}')
             end = time.time()
