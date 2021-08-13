@@ -40,6 +40,19 @@ def remove_bad_chars(text):
 
 def parse_wat_worker(file_name, start, line_count, oneprocess=False):
     bloom_filters, blocked_links, clipped_filters = getFilters()
+
+    def isinBloom(url_concat):
+        for bloom_filter in bloom_filters:
+            if url_concat in bloom_filter:
+                return True
+        return False
+
+    def isinClipped(url_concat):
+        for clipped_filter in clipped_filters:
+            if url_concat in clipped_filter:
+                return True
+        return False
+
     blocked_formats = set(
         ['.svg', '.gif', '.webp', 'data:image', 'javascript:', 'mailto:'])
 
@@ -92,23 +105,13 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                         (url + alt_text).encode('utf-8')).hexdigest()
                     if any(bf in url for bf in blocked_formats):
                         continue
-                    
-                    deduped = False
-                    for bloom_filter in bloom_filters:
-                        if dedupe_url in bloom_filter:
-                            dedupes += 1
-                            deduped = True
-                            break
-                    if deduped:
+
+                    if isinBloom(dedupe_url):
+                        dedupes += 1
                         continue
 
-                    clipped = False
-                    for clipped_filter in clipped_filters:
-                        if dedupe_url in clipped_filter:
-                            cliped += 1
-                            clipped = True
-                            break
-                    if clipped:
+                    if isinClipped(dedupe_url):
+                        cliped += 1
                         continue
 
                     valid_data.append((url, alt_text, license))
@@ -286,14 +289,14 @@ def dl_wat(valid_data, first_sample_id, isnotebook=False):
     )
 
 
-def upload(source: str, client_type: str):
+def upload(source: str, client_type: str, target: str):
     client_type = client_type.upper()
-    target = 'gpujobs' if client_type == 'CPU' else 'CAH'
-    options = '-rsh' if client_type == 'CPU' else '-zh'
-    
+    options = '-av' if client_type == 'CPU' else '-zh'
+
     result = 1
     while result:
-        result = os.system(f'rsync {options} {source} archiveteam@88.198.2.17::{target} > /dev/null 2>&1')
+        result = os.system(
+            f'rsync {options} {source} {target} > /dev/null 2>&1')
 
 
 def updateFilters(first=False):
@@ -476,7 +479,8 @@ def main(name, url, debug, isnotebook):
 
             client.log('Uploading Results')
 
-            upload(f'{output_folder}/*{out_fname}*', client.type)
+            upload(f'{output_folder}/*{out_fname}*',
+                   client.type, client.upload_address)
 
             client.completeJob(len(filtered_df))
             end = time.time()

@@ -17,18 +17,21 @@
 
 ## Docker file
 1. Get the docker image using `docker pull arkseal/cah-worker:hybrid-cpu`
-2. Run docker image using `docker run --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
+2. Run docker image using `docker run --name cahworker --shm-size=4G -d arkseal/cah-worker:hybrid-cpu`
     - add `-e NAME={nickname}` to specify display name
-        - Ex: `docker run -e NAME=ARKseal --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
-##### You can use this one liner: `docker pull arkseal/cah-worker:hybrid-cpu && docker run --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
+        - Ex: `docker run --name cahworker -e NAME=ARKseal --shm-size=4G -d arkseal/cah-worker:hybrid-cpu`
+##### You can use this one liner: `docker pull arkseal/cah-worker:hybrid-cpu && docker run --name cahworker --shm-size=4G -d arkseal/cah-worker:hybrid-cpu`
 - add `-e NAME={nickname}` to specify display name
-    - Ex: `docker pull arkseal/cah-worker:hybrid-cpu && docker run -e NAME=ARKseal --shm-size=1g -d arkseal/cah-worker:hybrid-cpu`
+    - Ex: `docker pull arkseal/cah-worker:hybrid-cpu && docker run --name cahworker -e NAME=ARKseal --shm-size=4G -d arkseal/cah-worker:hybrid-cpu`
 
 ### Other options
-- Gpu enabled hybrid worker: `docker pull arkseal/cah-worker:hybrid-gpu && docker run --gpus all --shm-size=1g -d arkseal/cah-worker:hybrid-gpu`
+- Gpu enabled hybrid worker: `docker pull arkseal/cah-worker:hybrid-gpu && docker run --name cahworker --gpus all --shm-size=4G -d arkseal/cah-worker:hybrid-gpu`
     - add `-e NAME={nickname}` to specify display name
-        - Ex: `docker pull arkseal/cah-worker:hybrid-gpu && docker run --gpus all -e NAME=ARKseal --shm-size=1g -d arkseal/cah-worker:hybrid-gpu`
-    - This requries NVIDIA Container Toolkit
+        - Ex: `docker pull arkseal/cah-worker:hybrid-gpu && docker run --name cahworker --gpus all -e NAME=ARKseal --shm-size=4G -d arkseal/cah-worker:hybrid-gpu`
+    - This requries NVIDIA Container Toolkit on host device
+- Cpu only worker: `docker pull arkseal/cah-worker:cpu && docker run --name cahworker --shm-size=4G -d arkseal/cah-worker:cpu`
+    - add `-e NAME={nickname}` to specify display name
+        - Ex: `docker pull arkseal/cah-worker:cpu && docker run --name cahworker -e NAME=ARKseal --shm-size=4G -d arkseal/cah-worker:cpu`
 
 ## Setup
 1. `wget https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/setup/setup_hybrid.sh`

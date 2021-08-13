@@ -41,6 +41,13 @@ def remove_bad_chars(text):
 
 def parse_wat_worker(file_name, start, line_count, oneprocess=False):
     blocked_links, clipped_filters = getFilters()
+
+    def isinClipped(url_concat):
+        for clipped_filter in clipped_filters:
+            if url_concat in clipped_filter:
+                return True
+        return False
+
     blocked_formats = set(
         ['.svg', '.gif', '.webp', 'data:image', 'javascript:', 'mailto:'])
 
@@ -93,13 +100,9 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False):
                         (url + alt_text).encode('utf-8')).hexdigest()
                     if any(bf in url for bf in blocked_formats):
                         continue
-                    clipped = False
-                    for clipped_filter in clipped_filters:
-                        if dedupe_url in clipped_filter:
-                            cliped += 1
-                            clipped = True
-                            break
-                    if clipped:
+
+                    if isinClipped(dedupe_url):
+                        cliped += 1
                         continue
 
                     valid_data.append((url, alt_text, license))
@@ -285,7 +288,8 @@ def upload(source: str, client_type: str, target: str):
 
     result = 1
     while result:
-        result = os.system(f'rsync {options} {source}.tar.gz {target} > /dev/null 2>&1')
+        result = os.system(
+            f'rsync {options} {source}.tar.gz {target} > /dev/null 2>&1')
     if os.path.exists(f'{source}.tar.gz'):
         os.remove(f'{source}.tar.gz')
 
@@ -297,10 +301,12 @@ def updateFilters(first=False):
 
     if first:
         os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" "http://the-eye.eu/public/AI/cahblacklists/" > /dev/null 2>&1')
-        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
+        os.system(
+            'mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
     else:
         os.system('wget -m -np -c -U "Crawling@Home" --tries=15 -R "index.html*,bloom*.bin" -A "*_active.bin" "http://the-eye.eu/public/AI/cahblacklists/" > /dev/null 2>&1')
-        os.system('mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
+        os.system(
+            'mv the-eye.eu/public/AI/cahblacklists/* blocklists > /dev/null 2>&1')
     shutil.rmtree('the-eye.eu')
 
     end = time.time()
