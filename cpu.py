@@ -286,7 +286,7 @@ def upload(source: str, client_type: str, target: str):
     result = 1
     while result:
         result = os.system(f'rsync {options} {source}.tar.gz {target} > /dev/null 2>&1')
-    if os.path.exists():
+    if os.path.exists(f'{source}.tar.gz'):
         os.remove(f'{source}.tar.gz')
 
 
