@@ -286,7 +286,8 @@ def upload(source: str, client_type: str, target: str):
     result = 1
     while result:
         result = os.system(f'rsync {options} {source}.tar.gz {target} > /dev/null 2>&1')
-    shutil.rmtree(f'{source}.tar.gz')
+    if os.path.exists():
+        os.remove(f'{source}.tar.gz')
 
 
 def updateFilters(first=False):
