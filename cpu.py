@@ -474,8 +474,9 @@ def main(name, url, debug, isnotebook, isdocker):
 
             end_processing = time.time()
             cah.print(
-                f'Processed shard in {(end_processing-start_processing):.1f} seconds',
-                f'cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
+                f'Processed shard in {(end_processing-start_processing):.1f} seconds'
+                '\n\t'
+                f'cliped found: {cliped}, shard dups found: {shard_dups}')
 
             safe_client_function(client.log, 'Downloading images')
             start_dl = time.time()

@@ -406,9 +406,9 @@ def main(name, url, debug, isnotebook, isdocker):
     if isdocker:
         checkCurrentWorkerVersion()
 
-    print('loading clip')
+    cah.print('loading clip')
     from clip_filter import run_inference
-    print('\nclip loaded\n')
+    cah.print('\nclip loaded\n')
 
     client = cah.init(
         url=url, nickname=name
@@ -485,8 +485,9 @@ def main(name, url, debug, isnotebook, isdocker):
 
             end_processing = time.time()
             cah.print(
-                f'Processed shard in {(end_processing-start_processing):.1f} seconds',
-                f'duplicates found: {dedupes}, cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
+                f'Processed shard in {(end_processing-start_processing):.1f} seconds'
+                '\n\t'
+                f'duplicates found: {dedupes}, cliped found: {cliped}, shard dups found: {shard_dups}')
 
             safe_client_function(client.log, 'Downloading images')
             start_dl = time.time()
