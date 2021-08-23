@@ -20,10 +20,13 @@ import asks
 import ftfy
 import pandas as pd
 import pycld2 as cld2
+import requests
 import trio
 import ujson
 from bloom_filter2 import BloomFilter
 from PIL import Image, ImageFile, UnidentifiedImageError
+
+import crawlingathome_client as cah
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
@@ -310,7 +313,7 @@ def updateFilters(first=False):
     shutil.rmtree('the-eye.eu')
 
     end = time.time()
-    print(f'[crawling@home] updated filters in {(end-start):.1f}')
+    cah.print(f'updated filters in {(end-start):.1f}')
 
 
 def getFilters():
@@ -359,8 +362,41 @@ class FileData:
         return self._length
 
 
-def main(name, url, debug, isnotebook):
-    import crawlingathome_client as cah
+def safe_client_function(client_function, *args, **kwargs):
+    while True:
+        try:
+            return client_function(*args, **kwargs)
+        except cah.WorkerTimedOutError:
+            cah.print('worker timed out, retrying')
+
+
+def checkCurrentWorkerVersion():
+    while True:
+        try:
+            r = requests.get(
+                'https://raw.githubusercontent.com/ARKseal/crawlingathome-worker/master/version.txt')
+            r.raise_for_status()
+            break
+        except requests.HTTPError:
+            pass
+
+    version = r.content.decode('utf-8')
+    current_version = os.getenv('CAHVERSION', default=None)
+
+    if current_version is None:
+        cah.print("Worker doesn't use the correct docker env")
+        exit(-1)
+
+    if version == current_version:
+        return
+
+    cah.print("Worker is outdated, please repull the docker image")
+    exit(-1)
+
+
+def main(name, url, debug, isnotebook, isdocker):
+    if isdocker:
+        checkCurrentWorkerVersion()
 
     client = cah.init(
         url=url, nickname=name, type='cpu'
@@ -380,12 +416,15 @@ def main(name, url, debug, isnotebook):
 
     while True:
         try:
-            jobs = client.jobCount()
+            jobs = safe_client_function(client.jobCount)
         except:
             pass
         break
 
     while jobs > 0:
+        if isdocker:
+            checkCurrentWorkerVersion()
+
         try:
             start = time.time()
 
@@ -395,8 +434,8 @@ def main(name, url, debug, isnotebook):
                 updater = mp.Process(target=updateFilters)
             updater.start()
 
-            if not client.isAlive():
-                client.recreate()
+            if not safe_client_function(client.isAlive):
+                safe_client_function(client.recreate)
 
             shutil.rmtree(output_folder, ignore_errors=True)
             shutil.rmtree(uid, ignore_errors=True)
@@ -406,8 +445,8 @@ def main(name, url, debug, isnotebook):
             os.mkdir(img_output_folder)
             os.mkdir('.tmp')
 
-            client.newJob()
-            client.downloadShard()
+            safe_client_function(client.newJob)
+            safe_client_function(client.downloadShard)
 
             first_sample_id = int(client.start_id)
             last_sample_id = int(client.end_id)
@@ -415,15 +454,15 @@ def main(name, url, debug, isnotebook):
 
             out_fname = \
                 f'FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}'
-            print(
-                f'[crawling@home] shard identification {out_fname}'
+            cah.print(
+                f'shard identification {out_fname}'
             )  # in case test fails, we need to remove bad data
 
             updater.join()
             if hasattr(updater, 'close'):
                 updater.close()
 
-            client.log('Processing shard')
+            safe_client_function(client.log, 'Processing shard')
             start_processing = time.time()
 
             parsed_data, cliped, shard_dups = parse_wat(
@@ -434,47 +473,47 @@ def main(name, url, debug, isnotebook):
             random.shuffle(parsed_data)
 
             end_processing = time.time()
-            print(
-                f'[crawling@home] Processed shard in {(end_processing-start_processing):.1f} seconds',
+            cah.print(
+                f'Processed shard in {(end_processing-start_processing):.1f} seconds',
                 f'cliped found: {cliped}, shard dups found: {shard_dups}', sep='\n\t')
 
-            client.log('Downloading images')
+            safe_client_function(client.log, 'Downloading images')
             start_dl = time.time()
             dlparse_df = dl_wat(parsed_data, first_sample_id, isnotebook)
             dlparse_df.to_csv(
                 f'{output_folder}{out_fname}.csv', index=False, sep='|')
             end_dl = time.time()
 
-            print(
-                f'[crawling@home] Downloaded {len(dlparse_df)} images out of {num_links} links in {(end_dl - start_dl):.1f} seconds')
-            print(
-                f'[crawling@home] Download efficiency: {(len(dlparse_df) / (end_dl - start_dl)):.2f} img/sec OR {(num_links / (end_dl - start_dl)):.2f} links/sec')
+            cah.print(
+                f'Downloaded {len(dlparse_df)} images out of {num_links} links in {(end_dl - start_dl):.1f} seconds')
+            cah.print(
+                f'Download efficiency: {(len(dlparse_df) / (end_dl - start_dl)):.2f} img/sec OR {(num_links / (end_dl - start_dl)):.2f} links/sec')
 
-            client.log('Uploading Temporary Job')
+            safe_client_function(client.log, 'Uploading Temporary Job')
 
             uid = uuid4().hex
             shutil.copytree('save', uid)
 
             upload(uid, client.type, client.upload_address)
 
-            client.completeJob(f'rsync {uid}')
+            safe_client_function(client.completeJob, f'rsync {uid}')
             end = time.time()
-            print(
-                f'[crawling@home] job completed in {(end - start):.1f} seconds')
-            print(
-                f'[crawling@home] job efficiency {(len(dlparse_df) / (end - start)):.2f} pairs/sec')
+            cah.print(
+                f'job completed in {(end - start):.1f} seconds')
+            cah.print(
+                f'job efficiency {(len(dlparse_df) / (end - start)):.2f} pairs/sec')
         except KeyboardInterrupt:
-            print('[crawling@home] stopping crawler')
+            cah.print('stopping crawler')
             break
         except Exception as ex:
-            print(f'[crawling@home] ERROR: {ex}')
+            cah.print(f'ERROR: {ex}')
             if debug:
                 traceback.print_exc()
             try:
                 if client.isAlive():
                     client.log('Error, restarting job')
             except:
-                print("[crawling@home] Couldn't log to client")
+                cah.print("Couldn't log to client")
         finally:
             if debug:
                 break

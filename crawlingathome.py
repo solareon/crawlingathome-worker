@@ -13,6 +13,8 @@ if __name__ == '__main__':
                         help='Add additional prints to debug code')
     parser.add_argument('--notebook', '-b', action='store_true',
                         help='Use tqdm.notebook module for notebooks')
+    parser.add_argument('--docker', '-d', action='store_true',
+                        help='Check docker version for latest image')
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--hybrid', '-y', action='store_true',
@@ -26,10 +28,11 @@ if __name__ == '__main__':
 
     if args.cpu:
         import cpu
-        cpu.main(args.name, args.url, args.debug, args.notebook)
+        cpu.main(args.name, args.url, args.debug, args.notebook, args.docker)
     elif args.gpu:
         import gpu
-        gpu.main(args.name, args.url, args.debug, args.notebook)
+        gpu.main(args.name, args.url, args.debug, args.notebook, args.docker)
     else:
         import hybrid
-        hybrid.main(args.name, args.url, args.debug, args.notebook)
+        hybrid.main(args.name, args.url, args.debug,
+                    args.notebook, args.docker)

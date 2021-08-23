@@ -82,7 +82,7 @@ def downloader(name, url, debug, isnotebook, workers):
         download, [(url, name, debug, isnotebook) for _ in range(1)])
 
 
-def main(name, url, debug, isnotebook, workers):
+def old_main(name, url, debug, isnotebook, workers, isdocker):
 
     if not Path('stats').exists():
         os.mkdir('stats')
@@ -192,3 +192,10 @@ def main(name, url, debug, isnotebook, workers):
         if path.is_dir():
             shutil.rmtree(folder)
     print('[crawling@home] cleaned workspace')
+
+
+def main(*args):
+    import warnings
+    warnings.filterwarnings('default')
+    warnings.warn(
+        'This worker is deprecated, use this repo: https://github.com/rvencu/crawlingathome-gpu-hcloud', DeprecationWarning)
