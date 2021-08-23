@@ -13,7 +13,7 @@ if __name__ == '__main__':
                         help='Add additional prints to debug code')
     parser.add_argument('--notebook', '-b', action='store_true',
                         help='Use tqdm.notebook module for notebooks')
-    parser.add_argument('--docker', '-d', action='store_true',
+    parser.add_argument('--docker', '-k', action='store_true',
                         help='Check docker version for latest image')
 
     group = parser.add_mutually_exclusive_group()
