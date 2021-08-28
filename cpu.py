@@ -175,7 +175,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
 
         if oneprocess:
             valid_hashes = bloom_server_filter(
-                '\n'.join(valid_data[-1]).encode('utf-8'))
+                '\n'.join([data[-1] for data in valid_data]).encode('utf-8'), bloom_ip)
 
             orig_len = len(valid_data)
             valid_data = [
@@ -195,7 +195,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
         gc.collect()
 
 
-def parse_wat(file_name, shard, workers):
+def parse_wat(file_name, shard, workers, bloom_ip='116.202.162.146'):
     fd = FileData(file_name)
 
     if shard == 0:
@@ -219,7 +219,7 @@ def parse_wat(file_name, shard, workers):
             valid_data.extend(ujson.load(f))
 
     valid_hashes = bloom_server_filter(
-        '\n'.join(valid_data[-1]).encode('utf-8'))
+        '\n'.join([data[-1] for data in valid_data]).encode('utf-8'), bloom_ip)
 
     orig_len = len(valid_data)
     valid_data = [
@@ -307,6 +307,7 @@ async def request_image(datas, start_sampleid, processing_count, lock):
                     tmp_data.append(proces)
             except Exception:
                 task.custom_sleep_data = 1
+        return
 
     async with trio.open_nursery() as n:
         for index in range(len(datas)):
