@@ -4,6 +4,7 @@ import multiprocessing as mp
 import os
 import random
 import shutil
+import ssl
 import sys
 import tarfile
 import time
@@ -38,6 +39,10 @@ from crawlingathome_client.temp import TempCPUWorker
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # https://stackoverflow.com/a/47958486
 
 warnings.filterwarnings('ignore')
+
+ssl_ctx = ssl.create_default_context()
+ssl_ctx.check_hostname = False
+ssl_ctx.verify_mode = ssl.CERT_NONE
 
 
 class DownloadProgressInstrument(trio.abc.Instrument):
@@ -271,11 +276,11 @@ def process_img_content(response, alt_text, license, sample_id):
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
 
 
-async def request_image(datas, start_sampleid, processing_count, lock):
+async def request_image(datas, start_sampleid, processing_count, lock, connections=128):
     tmp_data = []
-    session = asks.Session(connections=165)
+    session = asks.Session(connections=connections, ssl_context=ssl_ctx)
 
-    limit = trio.CapacityLimiter(1000)
+    limit = trio.CapacityLimiter(connections*2)
 
     user_agent_rotator = UserAgent(software_names=[SoftwareName.CHROME.value], operating_systems=[
                                    OperatingSystem.LINUX.value], limit=2000)
