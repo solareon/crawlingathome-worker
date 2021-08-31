@@ -271,12 +271,12 @@ def process_img_content(response, alt_text, license, sample_id):
                 im = im.convert('RGB')
             im.save(out_fname)
     except (KeyError, UnidentifiedImageError):
-        return
+        raise
 
     return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
 
 
-async def request_image(datas, start_sampleid, processing_count, lock, connections=128):
+async def request_image(datas, start_sampleid, processing_count, lock, connections=165):
     tmp_data = []
     session = asks.Session(connections=connections, ssl_context=ssl_ctx)
 
@@ -305,7 +305,7 @@ async def request_image(datas, start_sampleid, processing_count, lock, connectio
             url, alt_text, license = datas[data_index]
             try:
                 proces = process_img_content(
-                    await session.get(url, timeout=5), alt_text, license, sample_id
+                    await session.get(url, timeout=10, connection_timeout=20), alt_text, license, sample_id
                 )
                 task.custom_sleep_data = 0
                 if proces is not None:
