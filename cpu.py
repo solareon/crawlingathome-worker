@@ -81,9 +81,20 @@ class FileData:
         return self._length
 
 
+class InvalidImageError(Exception):
+    pass
+
+
 def chunk_using_generators(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i: i + n]
+
+
+def log(ex: Exception, msg: str = ''):
+    if msg:
+        msg = f'- {msg} '
+    with open('err.log', 'a') as f:
+        f.write(f'{ex.__class__.__name__} {msg} -> {ex}\n')
 
 
 def remove_bad_chars(text):
@@ -97,30 +108,28 @@ def bloom_server_filter(hashes, bloom_ip):
     }
 
     failure = True
-    for _ in range(10):
+    for _ in range(5):
         response = requests.post(
             f'http://{bloom_ip}:8000/deduplicate/', files=files)
         if response.status_code != 200:
-            cah.print('bloom server error, retrying...')
+            cah.print('Bloom Server Error, retrying...')
             time.sleep(1)
-        else:
-            failure = False
-            break
-    if failure:
-        cah.print('crash, cannot contact the bloom server, please fix')
-        sys.exit(1)
+            continue
+        return response.content.decode('utf-8').split('\n')
 
-    return response.content.decode('utf-8').split('\n')
+    cah.print('Cannot contact bloom server, shutting down worker')
+    sys.exit(1)
 
 
 def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='116.202.162.146'):
     blocked_links = BloomFilter(max_elements=10_000_000, error_rate=0.01, filename=(
         'blocklists/failed-domains.bin', -1))
 
-    blocked_formats = set(
-        ['.svg', '.gif', '.webp', 'data:image', 'javascript:', 'mailto:'])
+    blocked_formats = ('.svg', '.gif', '.webp',
+                       'data:image', 'javascript:', 'mailto:')
 
     valid_data = []
+    added_urls = set()
 
     with open(file_name, 'r') as content:
         content.seek(start)
@@ -143,19 +152,21 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
 
             license = '?'
             for e in linklist:
-                if 'alt' not in e:
-                    continue
-
                 if 'url' in e and 'creativecommons.org/licenses/' in e['url']:
                     license = e['url']
+
+                if 'alt' not in e:
+                    continue
 
                 url = e['url']
 
                 if any(bf in url for bf in blocked_formats):
                     continue
 
+                url_domain = 'unknown'
                 try:
-                    if urlparse(url).netloc in blocked_links:
+                    url_domain = urlparse(url).netloc
+                    if url_domain in blocked_links:
                         continue
                 except:
                     continue
@@ -173,35 +184,34 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
                 if not url.startswith('http'):
                     url = urljoin(base_url, url)
 
+                if url in added_urls:
+                    continue
+
                 hash = hashlib.md5(
                     (url + alt_text).encode('utf-8')).hexdigest()
 
-                valid_data.append((url, alt_text, license, hash))
+                valid_data.append((url, alt_text, license, url_domain, hash))
 
-        if oneprocess:
-            valid_hashes = bloom_server_filter(
-                '\n'.join([data[-1] for data in valid_data]).encode('utf-8'), bloom_ip)
+        valid_hashes = bloom_server_filter(
+            '\n'.join([data[-1].strip() for data in valid_data]).encode('utf-8'), bloom_ip)
 
-            orig_len = len(valid_data)
-            valid_data = [
-                t for t in {tuple(i) for i in valid_data}
-            ]
-            shard_dups = orig_len - len(valid_data)
+        orig_len = len(valid_data)
+        valid_data = [
+            t for t in {tuple(i) for i in valid_data}
+        ]
+        shard_dups = orig_len - len(valid_data)
 
-            before_clipped = len(valid_data)
-            valid_data = [data[:-1]
-                          for data in valid_data if data[-1].strip() in valid_hashes]
-            clipped = before_clipped - len(valid_data)
+        before_clipped = len(valid_data)
+        valid_data = [data
+                      for data in valid_data if data[-1].strip() in valid_hashes]
+        clipped = before_clipped - len(valid_data)
 
-            return valid_data, clipped, shard_dups
-
-        with open(f'.tmp/pw-{uuid1()}.json', 'w') as f:
-            ujson.dump(valid_data, f)
-        gc.collect()
+        return valid_data, clipped, shard_dups
 
 
-def parse_wat(file_name, shard, workers, bloom_ip='116.202.162.146'):
-    fd = FileData(file_name)
+def parse_wat(file_name, shard, fd=None, bloom_ip='116.202.162.146'):
+    if fd is None:
+        fd = FileData(file_name)
 
     if shard == 0:
         start_line = 0
@@ -210,35 +220,7 @@ def parse_wat(file_name, shard, workers, bloom_ip='116.202.162.146'):
 
     line_count = len(fd)//2
 
-    if workers == 1:
-        return parse_wat_worker(file_name, fd[start_line], line_count, oneprocess=True)
-
-    lc = line_count//workers - 1
-    with mp.Pool(workers) as pool:
-        pool.starmap(parse_wat_worker, [
-                     (file_name, fd[start_line + i*lc], lc) for i in range(workers)])
-
-    valid_data = []
-    for tmpf in glob('.tmp/pw-*.json'):
-        with open(tmpf, 'r') as f:
-            valid_data.extend(ujson.load(f))
-
-    valid_hashes = bloom_server_filter(
-        '\n'.join([data[-1] for data in valid_data]).encode('utf-8'), bloom_ip)
-
-    orig_len = len(valid_data)
-    valid_data = [
-        t for t in {tuple(i) for i in valid_data}
-    ]
-    shard_dups = orig_len - len(valid_data)
-
-    before_clipped = len(valid_data)
-    valid_data = [data[:-1]
-                  for data in valid_data if data[-1].strip() in valid_hashes]
-    clipped = before_clipped - len(valid_data)
-
-    del fd
-    return valid_data, clipped, shard_dups
+    return parse_wat_worker(file_name, fd[start_line], line_count)
 
 
 def process_img_content(response, alt_text, license, sample_id):
@@ -246,52 +228,50 @@ def process_img_content(response, alt_text, license, sample_id):
 
     try:
         if len(response.content) < 5000:
-            return
+            raise InvalidImageError('image is too small')
 
         img_data = BytesIO(response.content)
         with Image.open(img_data) as im:
             width, height = im.size
 
-            if width * height > 89478484:
-                return
+            if width * height > 89478484:  # Might be a DOS decompression bomb
+                raise InvalidImageError(
+                    'image is too large (dos decompression)')
 
-            if width * height > 8294400:  # if image is larger than 4K then attempt scale down
+            if width * height > 8294400:  # Resize Images larger than 4K
                 ratio = sqrt(width * height / 8294400)
                 width = int(width/ratio)
                 height = int(height/ratio)
-                im = im.resize((width, height))
+                im = im.resize((width, height), resample=Image.LANCZOS)
 
-            im_format = im.format
-            out_fname = f'{img_output_folder}{str(sample_id)}.{im_format.lower()}'
+            im_format = im.format.lower()
+            out_fname = f'{img_output_folder}{str(sample_id)}.{im_format}'
 
-            if im_format not in set(['JPEG', 'JPG', 'PNG', 'WEBP']):
-                return
+            if im_format not in set(['jpeg', 'jpg', 'png', 'webp']):
+                raise InvalidImageError('invalid image format')
 
             if im.mode != 'RGB':
                 im = im.convert('RGB')
             im.save(out_fname)
-    except (KeyError, UnidentifiedImageError):
-        raise
 
-    return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
+        return [str(sample_id), out_fname, response.url, alt_text, width, height, license]
+    except (AttributeError, KeyError, UnidentifiedImageError) as ex:
+        raise InvalidImageError(
+            f'Unidentified Image Error: {ex.__class__.__name__}')
 
 
-async def request_image(datas, start_sampleid, processing_count, lock, connections=165):
+async def request_image(datas, start_sampleid, user_agent, processing_count, lock, connections=165):
     tmp_data = []
-    session = asks.Session(connections=connections, ssl_context=ssl_ctx)
 
     limit = trio.CapacityLimiter(connections*2)
-
-    user_agent_rotator = UserAgent(software_names=[SoftwareName.CHROME.value], operating_systems=[
-                                   OperatingSystem.LINUX.value], limit=2000)
-    user_agent = user_agent_rotator.get_random_user_agent()
+    session = asks.Session(connections=connections, ssl_context=ssl_ctx)
 
     session.headers = {
         'User-Agent': user_agent,
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate',
         'Referer': 'https://www.google.com',
-        "DNT": "1",
+        'DNT': '1',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     }
 
@@ -302,23 +282,20 @@ async def request_image(datas, start_sampleid, processing_count, lock, connectio
 
             task = trio.lowlevel.current_task()
 
-            url, alt_text, license = datas[data_index]
+            url, alt_text, license, domain, hash = datas[data_index]
             try:
-                proces = process_img_content(
+                tmp_data.append(process_img_content(
                     await session.get(url, timeout=10, connection_timeout=20), alt_text, license, sample_id
-                )
+                ))
                 task.custom_sleep_data = 0
-                if proces is not None:
-                    tmp_data.append(proces)
-            except Exception:
+            except InvalidImageError:
                 task.custom_sleep_data = 1
         return
 
     async with trio.open_nursery() as n:
-        for index in range(len(datas)):
+        for id, index in enumerate(range(len(datas)), start=start_sampleid):
             async with limit:
-                n.start_soon(_request, index, start_sampleid)
-            start_sampleid += 1
+                n.start_soon(_request, index, id)
 
     with open(f'.tmp/dl-{uuid1()}.json', 'w') as f:
         ujson.dump(tmp_data, f)
@@ -465,6 +442,8 @@ def main(name, url, debug, isnotebook, isdocker):
         url=url, nickname=name
     )
 
+    client.bye = client._c.bye
+
     if not os.path.exists('blocklists'):
         os.mkdir('blocklists')
 
@@ -481,14 +460,7 @@ def main(name, url, debug, isnotebook, isdocker):
 
     update_filter(filter_session)
 
-    def getJobs():
-        while True:
-            try:
-                return safe_client_function(client.jobCount)
-            except:
-                pass
-
-    while getJobs() > 0:
+    while safe_client_function(client.jobCount) > 0:
         if isdocker:
             check_current_worker_version()
 
@@ -502,16 +474,10 @@ def main(name, url, debug, isnotebook, isdocker):
             if not safe_client_function(client.isAlive):
                 safe_client_function(client.recreate)
 
-            shutil.rmtree(output_folder, ignore_errors=True)
-            shutil.rmtree(uid, ignore_errors=True)
-            shutil.rmtree('.tmp', ignore_errors=True)
-
-            os.mkdir(output_folder)
-            os.mkdir(img_output_folder)
-            os.mkdir('.tmp')
-
             safe_client_function(client.newJob)
             safe_client_function(client.downloadWat)
+
+            fd = FileData('shard.wat')
 
             for shard_of_chunk in range(2):
                 shutil.rmtree(output_folder, ignore_errors=True)
@@ -523,9 +489,9 @@ def main(name, url, debug, isnotebook, isdocker):
                 os.mkdir('.tmp')
 
                 first_sample_id = np.int64(
-                    client.shards[shard_of_chunk][1]["start_id"])
+                    client.shards[shard_of_chunk][1]['start_id'])
                 last_sample_id = np.int64(
-                    client.shards[shard_of_chunk][1]["end_id"])
+                    client.shards[shard_of_chunk][1]['end_id'])
 
                 out_fname = \
                     f'FIRST_SAMPLE_ID_IN_SHARD_{first_sample_id}_LAST_SAMPLE_ID_IN_SHARD_{last_sample_id}_{shard_of_chunk}'
@@ -539,9 +505,15 @@ def main(name, url, debug, isnotebook, isdocker):
                 start_processing = time.time()
 
                 parsed_data, cliped, shard_dups = parse_wat(
-                    'shard.wat', shard_of_chunk, workers)
+                    'shard.wat', shard_of_chunk, fd=fd)
 
                 num_links = len(parsed_data)
+
+                parsed_df = pd.DataFrame(parsed_data, columns=[
+                                         'URL', 'TEXT', 'LICENSE', 'DOMAIN', 'HASH'])
+                parsed_df = parsed_df.drop_duplicates(subset=['URL'])
+                parsed_df.to_csv(
+                    f'{output_folder}{out_fname}_parsed.csv', index=False, sep='|')
 
                 random.shuffle(parsed_data)
 
@@ -553,11 +525,12 @@ def main(name, url, debug, isnotebook, isdocker):
 
                 safe_client_function(client.log, 'Downloading images')
                 start_dl = time.time()
+
                 dlparse_df = dl_wat(parsed_data, first_sample_id, isnotebook)
                 dlparse_df.to_csv(
                     f'{output_folder}{out_fname}.csv', index=False, sep='|')
-                end_dl = time.time()
 
+                end_dl = time.time()
                 cah.print(
                     f'Downloaded {len(dlparse_df)} images out of {num_links} links in {(end_dl - start_dl):.2f} seconds')
                 cah.print(
@@ -586,8 +559,8 @@ def main(name, url, debug, isnotebook, isdocker):
             if debug:
                 traceback.print_exc()
             try:
-                if client.isAlive():
-                    client.log('Error, restarting job')
+                if safe_client_function(client.isAlive):
+                    safe_client_function(client.log, 'Error, restarting job')
             except:
                 cah.print("Couldn't log to client")
         finally:
@@ -599,7 +572,7 @@ def main(name, url, debug, isnotebook, isdocker):
     except:
         pass
     try:
-        if client.isAlive():
-            client.bye()
+        if safe_client_function(client.isAlive):
+            safe_client_function(client.bye)
     except:
         pass

@@ -1,10 +1,12 @@
 asks
 bloom-filter2
 ftfy
+numpy
 pandas
 Pillow
 pycld2
 random-user-agent
+requests
 trio
 tqdm
 ujson

@@ -145,3 +145,6 @@ save/*
 *.wat
 hcloud-python
 hcloud
+
+# VS Code
+**/.vscode

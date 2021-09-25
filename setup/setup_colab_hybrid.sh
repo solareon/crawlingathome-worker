@@ -31,6 +31,3 @@ pip3 install torch==1.7.1$1 torchvision==0.8.2$1 -f https://download.pytorch.org
 
 pip3 install -r crawlingathome_client/requirements.txt --no-cache-dir
 pip3 install -r ./requirements.txt --no-cache-dir
-
-yes | pip3 uninstall asks
-pip3 install git+https://github.com/rvencu/asks --no-cache-dir
