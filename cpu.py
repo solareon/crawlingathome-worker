@@ -18,6 +18,7 @@ from math import sqrt
 from threading import Thread
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1, uuid4
+from tqdm import tqdm, trange
 
 import asks
 import ftfy
@@ -46,20 +47,24 @@ ssl_ctx.verify_mode = ssl.CERT_NONE
 
 
 class DownloadProgressInstrument(trio.abc.Instrument):
-    def __init__(self, processing_count, finished_count, error_count, lock):
+    def __init__(self, processing_count, finished_count, http_error_count, image_error_count, lock):
         self._processing_count = processing_count
         self._finished_count = finished_count
-        self._error_count = error_count
+        self._http_error_count = http_error_count
+        self._image_error_count = image_error_count
         self._lock = lock
 
     def task_exited(self, task):
-        if task.custom_sleep_data in [0, 1]:
+        if task.custom_sleep_data in [0, 1, 2]:
             with self._lock:
                 self._processing_count.value -= 1
                 self._finished_count.value += 1
             if task.custom_sleep_data == 1:
                 with self._lock:
-                    self._error_count.value += 1
+                    self._http_error_count.value += 1
+            if task.custom_sleep_data == 2:
+                with self._lock:
+                    self._image_error_count.value += 1
 
 
 class FileData:
@@ -133,7 +138,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
 
     with open(file_name, 'r') as content:
         content.seek(start)
-        for _ in range(line_count):
+        for _ in trange(line_count, position=0):
             line = content.readline()
 
             if 'IMG@' not in line:
@@ -151,7 +156,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
             )
 
             license = '?'
-            for e in linklist:
+            for e in tqdm(linklist, position=1, leave=False):
                 if 'url' in e and 'creativecommons.org/licenses/' in e['url']:
                     license = e['url']
 
@@ -263,7 +268,7 @@ def process_img_content(response, alt_text, license, sample_id):
 async def request_image(datas, start_sampleid, user_agent, processing_count, lock, connections=165):
     tmp_data = []
 
-    limit = trio.CapacityLimiter(connections*2)
+    limit = trio.CapacityLimiter(connections*8)
     session = asks.Session(connections=connections, ssl_context=ssl_ctx)
 
     session.headers = {
@@ -288,8 +293,12 @@ async def request_image(datas, start_sampleid, user_agent, processing_count, loc
                     await session.get(url, timeout=10, connection_timeout=20), alt_text, license, sample_id
                 ))
                 task.custom_sleep_data = 0
-            except InvalidImageError:
+            except InvalidImageError as ex:
+                log(ex, msg='Image Error')
                 task.custom_sleep_data = 1
+            except Exception as ex:
+                log(ex, msg='HTTP Error')
+                task.custom_sleep_data = 2
         return
 
     async with trio.open_nursery() as n:
@@ -302,12 +311,12 @@ async def request_image(datas, start_sampleid, user_agent, processing_count, loc
     gc.collect()
 
 
-def dl_wat_worker(data, start_sample_id, processing_count, finished_count, error_count, lock):
-    trio.run(request_image, data, start_sample_id, processing_count, lock, instruments=[
-             DownloadProgressInstrument(processing_count, finished_count, error_count, lock)])
+def dl_wat_worker(data, start_sample_id, user_agent, processing_count, finished_count, http_error_count, image_error_count, lock):
+    trio.run(request_image, data, start_sample_id, user_agent, processing_count, lock, instruments=[
+             DownloadProgressInstrument(processing_count, finished_count, http_error_count, image_error_count, lock)])
 
 
-def dl_progress(len_data, processing_count, finished_count, error_count, update_tqdm, lock, isnotebook=False):
+def dl_progress(len_data, processing_count, finished_count, http_error_count, image_error_count, update_tqdm, lock, isnotebook=False):
     if isnotebook:
         from tqdm import tqdm
     else:
@@ -318,13 +327,13 @@ def dl_progress(len_data, processing_count, finished_count, error_count, update_
         with lock:
             if not update_tqdm.value:
                 break
-            progress_bar.desc = f'Processing {processing_count.value} links, {error_count.value} errors'
+            progress_bar.desc = f'Processing {processing_count.value} links, {http_error_count.value} http errors, {image_error_count.value} image errors'
             progress_bar.update(finished_count.value - progress_bar.n)
         time.sleep(1)
     progress_bar.close()
 
 
-def dl_wat(valid_data, first_sample_id, isnotebook=False):
+def dl_wat(valid_data, first_sample_id, user_agent_rotator, isnotebook=False):
     # Download every image available
     processed_samples = []
     n_processes = mp.cpu_count()
@@ -334,24 +343,25 @@ def dl_wat(valid_data, first_sample_id, isnotebook=False):
 
     processing_count = manager.Value(c_int, 0)
     finished_count = manager.Value(c_int, 0)
-    error_count = manager.Value(c_int, 0)
+    http_error_count = manager.Value(c_int, 0)
+    image_error_count = manager.Value(c_int, 0)
 
     lock = manager.Lock()
 
     t = mp.Process(target=dl_progress, args=(
-        len(valid_data), processing_count, finished_count, error_count, update_tqdm, lock, isnotebook))
+        len(valid_data), processing_count, finished_count, http_error_count, image_error_count, update_tqdm, lock, isnotebook))
     t.start()
 
     if n_processes == 1:
-        dl_wat_worker(valid_data, processing_count,
-                      finished_count, error_count, update_tqdm, lock)
+        dl_wat_worker(valid_data, first_sample_id, user_agent_rotator.get_random_user_agent(), processing_count,
+                      finished_count, http_error_count, image_error_count, update_tqdm, lock)
     else:
         chunk_size = len(valid_data) // n_processes + 1
         worker = partial(dl_wat_worker, processing_count=processing_count,
-                         finished_count=finished_count, error_count=error_count, lock=lock)
+                         finished_count=finished_count, http_error_count=http_error_count, image_error_count=image_error_count, lock=lock)
 
         with mp.Pool(n_processes) as pool:
-            pool.starmap(worker, [(data, first_sample_id + i * chunk_size)
+            pool.starmap(worker, [(data, first_sample_id + i * chunk_size, user_agent_rotator.get_random_user_agent())
                                   for (i, data) in enumerate(chunk_using_generators(valid_data, chunk_size))])
 
     time.sleep(1)
@@ -442,7 +452,8 @@ def main(name, url, debug, isnotebook, isdocker):
         url=url, nickname=name
     )
 
-    client.bye = client._c.bye
+    if not hasattr(client, 'bye'):
+        client.bye = client._c.bye
 
     if not os.path.exists('blocklists'):
         os.mkdir('blocklists')
@@ -459,6 +470,9 @@ def main(name, url, debug, isnotebook, isdocker):
     filter_session.mount('http://', retry_15)
 
     update_filter(filter_session)
+
+    user_agent_rotator = UserAgent(software_names=[SoftwareName.CHROME.value], operating_systems=[
+                                   OperatingSystem.LINUX.value], limit=2000)
 
     while safe_client_function(client.jobCount) > 0:
         if isdocker:
@@ -526,7 +540,8 @@ def main(name, url, debug, isnotebook, isdocker):
                 safe_client_function(client.log, 'Downloading images')
                 start_dl = time.time()
 
-                dlparse_df = dl_wat(parsed_data, first_sample_id, isnotebook)
+                dlparse_df = dl_wat(
+                    parsed_data, first_sample_id, user_agent_rotator, isnotebook)
                 dlparse_df.to_csv(
                     f'{output_folder}{out_fname}.csv', index=False, sep='|')
 
@@ -539,7 +554,7 @@ def main(name, url, debug, isnotebook, isdocker):
                 safe_client_function(client.log, 'Uploading Temporary Job')
 
                 uid = uuid4().hex
-                shutil.copytree('save', uid)
+                shutil.move('save', uid)
 
                 completing_arg[str(
                     client.shards[shard_of_chunk][0])] = f'rsync {uid}'
