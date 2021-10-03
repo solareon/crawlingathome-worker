@@ -137,7 +137,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
 
     with open(file_name, 'r') as content:
         content.seek(start)
-        for _ in line_count:
+        for _ in range(line_count):
             line = content.readline()
 
             if 'IMG@' not in line:
