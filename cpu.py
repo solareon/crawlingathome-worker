@@ -18,7 +18,6 @@ from math import sqrt
 from threading import Thread
 from urllib.parse import urljoin, urlparse
 from uuid import uuid1, uuid4
-from tqdm import tqdm, trange
 
 import asks
 import ftfy
@@ -138,7 +137,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
 
     with open(file_name, 'r') as content:
         content.seek(start)
-        for _ in trange(line_count, position=0):
+        for _ in line_count:
             line = content.readline()
 
             if 'IMG@' not in line:
@@ -156,7 +155,7 @@ def parse_wat_worker(file_name, start, line_count, oneprocess=False, bloom_ip='1
             )
 
             license = '?'
-            for e in tqdm(linklist, position=1, leave=False):
+            for e in linklist:
                 if 'url' in e and 'creativecommons.org/licenses/' in e['url']:
                     license = e['url']
 
@@ -268,7 +267,7 @@ def process_img_content(response, alt_text, license, sample_id):
 async def request_image(datas, start_sampleid, user_agent, processing_count, lock, connections=165):
     tmp_data = []
 
-    limit = trio.CapacityLimiter(connections*8)
+    limit = trio.CapacityLimiter(2000)
     session = asks.Session(connections=connections, ssl_context=ssl_ctx)
 
     session.headers = {
@@ -581,6 +580,7 @@ def main(name, url, debug, isnotebook, isdocker):
         finally:
             if debug:
                 break
+    shutil.rmtree(uid, ignore_errors=True)
     try:
         if updater is not None:
             updater.join()
