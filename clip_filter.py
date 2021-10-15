@@ -93,7 +93,7 @@ class CLIP:
         batch_size = 8 if not  use_cuda else 256 if not multiple_gpus else 64
 
         dataset = CLIPDataset(df)
-        dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, num_workers=cpu_count()-3, shuffle=False, pin_memory=True)
+        dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, num_workers=cpu_count(), shuffle=False, pin_memory=True)
 
         for tensors, tokens in dataloader:
             tensors, tokens = tensors.to(device, non_blocking=True), tokens.to(device, non_blocking=True)
