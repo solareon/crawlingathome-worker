@@ -1,12 +1,12 @@
 asks
-bloom-filter2
-clip-anytorch
-datasets
+git+https://github.com/openai/CLIP
 ftfy
+numpy
 pandas
 Pillow
 pycld2
-tfreecord
+random-user-agent
+requests
 trio
 tqdm
 ujson

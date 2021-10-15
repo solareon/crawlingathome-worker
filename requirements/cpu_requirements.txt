@@ -1,5 +1,4 @@
 asks
-bloom-filter2
 ftfy
 numpy
 pandas

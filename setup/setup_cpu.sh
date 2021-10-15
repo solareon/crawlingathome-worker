@@ -15,7 +15,6 @@ sudo apt-get update && sudo apt-get install -y git build-essential python3-dev p
 python3 -m venv venv && . venv/bin/activate
 
 rm crawlingathome.py clip_filter.py cpu.py requirements.txt
-rm -r blocklists
 rm -r crawlingathome_client
 
 git clone "https://github.com/TheoCoombes/crawlingathome" crawlingathome_client

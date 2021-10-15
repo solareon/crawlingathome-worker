@@ -194,7 +194,7 @@ def old_main(name, url, debug, isnotebook, workers, isdocker):
     print('[crawling@home] cleaned workspace')
 
 
-def main(*args):
+def main(*_):
     import warnings
     warnings.filterwarnings('default')
     warnings.warn(
